@@ -1,0 +1,33 @@
+/**
+ * Starting express application middleware for event-calendar project
+ *
+ * @author Hyecheol (Jerry) Jang <hyecheol123@gmail.com>
+ */
+
+import {Server} from 'http';
+import ExpressServer from './ExpressServer';
+import ServerConfig from './ServerConfig';
+
+const configInstance = new ServerConfig(); // Configuration of the server
+const expressServer = new ExpressServer(configInstance); // express server setup
+
+// Startup the express server
+const {app} = expressServer;
+const server: Server = app.listen(configInstance.expressPort);
+console.log(`Start API Server at port ${configInstance.expressPort}`);
+
+// Gracefully shutdown express server
+const shutdown = async (): Promise<void> => {
+  // Close database connection
+  await expressServer.closeServer();
+
+  // Close API Server
+  await server.close();
+
+  console.log('Shutdown API Server');
+  // eslint-disable-next-line no-process-exit
+  process.exit(0);
+};
+
+process.on('SIGTERM', shutdown);
+process.on('SIGINT', shutdown);
