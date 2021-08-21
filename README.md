@@ -34,9 +34,55 @@ Data Diagram
 
 <details>
   <summary>테이블을 만들기 위해 사용된 SQL Query를 보려면 클릭해 주십시오.</summary>
+ 
 
-  TO BE UPDATED
+  `admin` 테이블을 만들기 위한 SQL 쿼리
+  ``` SQL
+  CREATE TABLE admin (
+    username VARCHAR(12) NOT NULL PRIMARY KEY,
+    password CHAR(88) NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    membersince TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+  ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  ```
 
+  `admin_session` 테이블을 만들기 위한 SQL 쿼리
+  ``` SQL
+  CREATE TABLE admin_session (
+    username VARCHAR(12) NOT NULL,
+    FOREIGN KEY (username) REFERENCES admin(username) ON DELETE CASCADE ON UPDATE CASCADE,
+    token VARCHAR(255) NOT NULL PRIMARY KEY,
+    expires TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX index_expires(expires)
+  ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  ```
+
+  `event` 테이블을 만들기 위한 SQL 쿼리
+  ``` SQL
+  CREATE TABLE event (
+    id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    INDEX index_date(date),name VARCHAR(255) NOT NULL,
+    detail MEDIUMTEXT NULL DEFAULT NULL,
+    category VARCHAR(255) NULL DEFAULT NULL,
+    editor VARCHAR(12) NOT NULL,
+    FOREIGN KEY (editor) REFERENCES admin(username) ON DELETE CASCADE ON UPDATE CASCADE
+  ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  ```
+
+  `participation` 테이블을 만들기 위한 SQL 쿼리
+  ``` SQL
+  CREATE TABLE participation (
+    id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
+    event_id INT(11) NOT NULL,
+    FOREIGN KEY (event_id) REFERENCES event(id) ON DELETE CASCADE ON UPDATE CASCADE,
+    date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    participant_name VARCHAR(255) NOT NULL,
+    phone_number VARCHAR(20) NULL DEFAULT NULL,
+    email VARCHAR(255) NOT NULL,
+    comment TEXT NULL DEFAULT NULL
+  ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  ```
 </details>
 
 [Express](https://expressjs.com/)는 node.js를 위한 웹 프레임워크입니다.
