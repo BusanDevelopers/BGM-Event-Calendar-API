@@ -17,7 +17,7 @@ import AuthToken from '../../datatypes/authentication/AuthToken';
  * @param jwtAccessKey jwt access key secret
  * @return {string} JWT access token
  */
-export default function accessTokenCreate(
+export default function createAccessToken(
   username: AuthToken['username'],
   jwtAccessKey: string
 ): string {

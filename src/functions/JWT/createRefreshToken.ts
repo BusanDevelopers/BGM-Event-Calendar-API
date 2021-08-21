@@ -21,7 +21,7 @@ import AuthToken from '../../datatypes/authentication/AuthToken';
  * @param jwtRefreshKey jwt Refresh Token Secret
  * @return {Promise<string>} JWT refresh Token
  */
-export default async function refreshTokenCreate(
+export default async function createRefreshToken(
   dbClient: mariadb.Pool,
   username: AuthToken['username'],
   jwtRefreshKey: string
