@@ -9,6 +9,7 @@ import * as mariadb from 'mariadb';
 import * as cookieParser from 'cookie-parser';
 import ServerConfig from './ServerConfig';
 import HTTPError from './exceptions/HTTPError';
+import authRouter from './routes/auth';
 
 /**
  * Class contains Express Application and other relevant instances/functions
@@ -59,6 +60,7 @@ export default class ExpressServer {
     );
 
     // Routers
+    this.app.use('/auth', authRouter);
 
     // Default Error Handler
     this.app.use(
