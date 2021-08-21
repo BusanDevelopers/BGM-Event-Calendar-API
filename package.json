@@ -28,15 +28,17 @@
     }
   },
   "scripts": {
-    "test": "jest --coverage --detectOpenHandles --forceExit --errorOnDeprecated",
-    "lint": "gts lint",
-    "lint:fix": "gts fix",
     "build": "tsc",
     "clean": "gts clean",
-    "start": "node dist/main.js",
-    "prestart": "npm run build",
+    "lint": "gts lint",
+    "lint:fix": "gts fix",
     "pretest": "npm run build",
-    "posttest": "npm run lint"
+    "test": "jest --coverage --detectOpenHandles --forceExit --errorOnDeprecated",
+    "posttest": "npm run lint",
+    "prestart": "npm run build",
+    "start": "node dist/main.js",
+    "prenewAdmin": "npm run build",
+    "newAdmin": "node dist/utils/newAdmin.js"
   },
   "engines": {
     "node": ">=12.9.0"
