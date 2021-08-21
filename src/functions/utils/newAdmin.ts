@@ -60,5 +60,13 @@ export default async function newAdmin(
     database: config.db.defaultDatabase,
     compress: true,
   });
-  return await Admin.create(dbClient, admin);
+  let result;
+  try {
+    result = await Admin.create(dbClient, admin);
+    await dbClient.end();
+  } catch (e) {
+    await dbClient.end();
+    throw e;
+  }
+  return result;
 }
