@@ -1,13 +1,14 @@
 /**
  * Method to check username rule
- *  - Contains at least one character, only allow small characters and numbers
+ *  - Only allow small characters and numbers
  *  - At least 6 character long, maximum of 12 character long
  *  - Start with an alphabet
  *
  * @param username username of the user
+ * @return boolean Whether username complies with the rule or not
  * @author Hyecheol (Jerry) Jang <hyecheol123@gmail.com>
  */
-export default function usernameRule(username: string): boolean {
+export default function checkUsernameRule(username: string): boolean {
   const smallLetterRegExp = /[a-z]/;
   const notAllowedRegExp = /[^0-9a-z]/;
   const usernameRegExp = /^(?=.*[a-z])[a-z0-9]{6,12}$/;

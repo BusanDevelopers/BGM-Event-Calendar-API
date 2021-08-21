@@ -12,10 +12,10 @@ import BadRequestError from '../exceptions/BadRequestError';
 import Admin from '../datatypes/authentication/Admin';
 import LoginCredentials from '../datatypes/authentication/LoginCredentials';
 import {validateLoginCredentials} from '../functions/inputValidator/validateLoginCredentials';
-import usernameRule from '../functions/inputValidator/usernameRule';
-import passwordRule from '../functions/inputValidator/passwordRule';
-import accessTokenCreate from '../functions/JWT/accessTokenCreate';
-import refreshTokenCreate from '../functions/JWT/refreshTokenCreate';
+import checkUsernameRule from '../functions/inputValidator/checkUsernameRule';
+import checkPasswordRule from '../functions/inputValidator/checkPasswordRule';
+import createAccessToken from '../functions/JWT/createAccessToken';
+import createRefreshToken from '../functions/JWT/createRefreshToken';
 
 // Path: /auth
 const authRouter = express.Router();
@@ -31,10 +31,12 @@ authRouter.post('/login', async (req, res, next) => {
       throw new BadRequestError();
     }
     // Username & password rule check
-    if (!usernameRule(loginCredentials.username)) {
+    if (!checkUsernameRule(loginCredentials.username)) {
       throw new AuthenticationError();
     }
-    if (!passwordRule(loginCredentials.username, loginCredentials.password)) {
+    if (
+      !checkPasswordRule(loginCredentials.username, loginCredentials.password)
+    ) {
       throw new AuthenticationError();
     }
 
@@ -62,11 +64,11 @@ authRouter.post('/login', async (req, res, next) => {
     }
 
     // Create Tokens
-    const accessToken = accessTokenCreate(
+    const accessToken = createAccessToken(
       admin.username,
       req.app.get('jwtAccessKey')
     );
-    const refreshToken = await refreshTokenCreate(
+    const refreshToken = await createRefreshToken(
       dbClient,
       admin.username,
       req.app.get('jwtRefreshKey')

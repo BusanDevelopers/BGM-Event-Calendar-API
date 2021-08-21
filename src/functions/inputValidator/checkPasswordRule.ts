@@ -9,9 +9,10 @@
  *
  * @param username username of the user
  * @param password password the user attempts to use
+ * @return boolean Whether the password complies with the password rule or not
  * @author Hyecheol (Jerry) Jang <hyecheol123@gmail.com>
  */
-export default function passwordRule(
+export default function checkPasswordRule(
   username: string,
   password: string
 ): boolean {
