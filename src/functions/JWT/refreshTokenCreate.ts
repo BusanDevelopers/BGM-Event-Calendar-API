@@ -14,6 +14,7 @@ import AuthToken from '../../datatypes/authentication/AuthToken';
  *  - using HS512 as hashing algorithm
  *  - contains username
  *  - Saved to DB admin_session table
+ *    - If there exists previous session, invalidate the session
  *
  * @param dbClient DB Connection Pool (MariaDB)
  * @param username unique username indicates the owner of this token
@@ -25,10 +26,16 @@ export default async function refreshTokenCreate(
   username: AuthToken['username'],
   jwtRefreshKey: string
 ): Promise<string> {
+  // Token content
   const tokenContent: AuthToken = {
     username: username,
     type: 'refresh',
   };
+
+  // Database - delete existing refreshTokens
+  await dbClient.query('DELETE FROM admin_session WHERE username = ?', [
+    username,
+  ]);
 
   // Generate RefreshToken
   const refreshToken = jwt.sign(tokenContent, jwtRefreshKey, {
@@ -36,7 +43,7 @@ export default async function refreshTokenCreate(
     expiresIn: '120m',
   });
 
-  // Database
+  // Database - Add new refresh token
   const expDate = new Date();
   expDate.setMinutes(expDate.getMinutes() + 120);
   await dbClient.query(
