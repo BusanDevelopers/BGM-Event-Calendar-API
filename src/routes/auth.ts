@@ -93,4 +93,18 @@ authRouter.post('/login', async (req, res, next) => {
   }
 });
 
+// DELETE: auth/logout
+authRouter.delete('/logout', async (req, res, next) => {
+  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+
+  try {
+    // TODO: Verify Refresh Token
+    // TODO: Retrieve Refresh Token
+    // TODO: Remove token from DB
+    // TODO: Clear Cookie & Response
+  } catch (e) {
+    next(e);
+  }
+});
+
 export default authRouter;
