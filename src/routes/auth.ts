@@ -16,6 +16,7 @@ import checkUsernameRule from '../functions/inputValidator/checkUsernameRule';
 import checkPasswordRule from '../functions/inputValidator/checkPasswordRule';
 import createAccessToken from '../functions/JWT/createAccessToken';
 import createRefreshToken from '../functions/JWT/createRefreshToken';
+import verifyRefreshToken from '../functions/JWT/verifyRefreshToken';
 
 // Path: /auth
 const authRouter = express.Router();
@@ -98,8 +99,18 @@ authRouter.delete('/logout', async (req, res, next) => {
   const dbClient: mariadb.Pool = req.app.locals.dbClient;
 
   try {
-    // TODO: Verify Refresh Token
-    // TODO: Retrieve Refresh Token
+    // Verify Refresh Token
+    const verifyResult = await verifyRefreshToken(
+      req,
+      req.app.get('jwtRefreshKey'),
+      dbClient
+    );
+    // Retrieve Refresh Token
+    let refreshToken = req.cookies['X-REFRESH-TOKEN'];
+    if (verifyResult.newToken !== undefined) {
+      refreshToken = verifyResult.newToken;
+    }
+
     // TODO: Remove token from DB
     // TODO: Clear Cookie & Response
   } catch (e) {
