@@ -7,6 +7,7 @@
 import * as jwt from 'jsonwebtoken';
 import * as mariadb from 'mariadb';
 import AuthToken from '../../datatypes/authentication/AuthToken';
+import AdminSession from '../../datatypes/authentication/AdminSession';
 
 /**
  * Method to generate new refreshToken
@@ -33,9 +34,7 @@ export default async function createRefreshToken(
   };
 
   // Database - delete existing refreshTokens
-  await dbClient.query('DELETE FROM admin_session WHERE username = ?', [
-    username,
-  ]);
+  await AdminSession.deleteByUsername(dbClient, username);
 
   // Generate RefreshToken
   const refreshToken = jwt.sign(tokenContent, jwtRefreshKey, {
@@ -46,14 +45,8 @@ export default async function createRefreshToken(
   // Database - Add new refresh token
   const expDate = new Date();
   expDate.setMinutes(expDate.getMinutes() + 120);
-  await dbClient.query(
-    String.prototype.concat(
-      'INSERT INTO admin_session ',
-      '(username, token, expires) ',
-      'VALUES (?, ?, ?)'
-    ),
-    [username, refreshToken, expDate]
-  );
+  const session = {username: username, token: refreshToken, expires: expDate};
+  await AdminSession.create(dbClient, session);
 
   return refreshToken;
 }
