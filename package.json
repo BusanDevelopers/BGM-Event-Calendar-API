@@ -38,7 +38,9 @@
     "prestart": "npm run build",
     "start": "node dist/main.js",
     "prenewAdmin": "npm run build",
-    "newAdmin": "node dist/utilsRunner/newAdmin.runner.js"
+    "newAdmin": "node dist/utilsRunner/newAdmin.runner.js",
+    "predeleteAdmin": "npm run build",
+    "deleteAdmin": "node dist/utilsRunner/deleteAdmin.runner.js"
   },
   "engines": {
     "node": ">=12.9.0"
