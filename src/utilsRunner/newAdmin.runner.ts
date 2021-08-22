@@ -19,7 +19,7 @@ if (process.argv.length !== 5) {
     String.prototype.concat(
       'Incorrect number of command-line arguments provided!!\n\n',
       'Please check how to use the function and try again.\n',
-      'usage: node dist/utils/newAdmin.js [username] [password] [name]'
+      'usage: node dist/utilsRunner/newAdmin.runner.js [username] [password] [name]'
     )
   );
   // eslint-disable-next-line no-process-exit
