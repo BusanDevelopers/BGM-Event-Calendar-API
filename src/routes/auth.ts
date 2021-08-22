@@ -10,6 +10,7 @@ import ServerConfig from '../ServerConfig';
 import AuthenticationError from '../exceptions/AuthenticationError';
 import BadRequestError from '../exceptions/BadRequestError';
 import Admin from '../datatypes/authentication/Admin';
+import AdminSession from '../datatypes/authentication/AdminSession';
 import LoginCredentials from '../datatypes/authentication/LoginCredentials';
 import {validateLoginCredentials} from '../functions/inputValidator/validateLoginCredentials';
 import checkUsernameRule from '../functions/inputValidator/checkUsernameRule';
@@ -17,7 +18,6 @@ import checkPasswordRule from '../functions/inputValidator/checkPasswordRule';
 import createAccessToken from '../functions/JWT/createAccessToken';
 import createRefreshToken from '../functions/JWT/createRefreshToken';
 import verifyRefreshToken from '../functions/JWT/verifyRefreshToken';
-import AdminSession from '../datatypes/authentication/AdminSession';
 
 // Path: /auth
 const authRouter = express.Router();
@@ -118,6 +118,60 @@ authRouter.delete('/logout', async (req, res, next) => {
     // Clear Cookie & Response
     res.clearCookie('X-ACCESS-TOKEN', {httpOnly: true, maxAge: 0});
     res.clearCookie('X-REFRESH-TOKEN', {httpOnly: true, maxAge: 0});
+    res.status(200).send();
+  } catch (e) {
+    next(e);
+  }
+});
+
+// GET: /auth/renew
+authRouter.get('/renew', async (req, res, next) => {
+  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+
+  try {
+    // Verify refresh Token
+    const verifyResult = await verifyRefreshToken(
+      req,
+      req.app.get('jwtRefreshKey'),
+      dbClient
+    );
+    // Refresh Token about to expire (Generated new token)
+    // When no refreshToken created, the variable will be undefined
+    const refreshToken = verifyResult.newToken;
+
+    // Check admin user existence
+    try {
+      await Admin.read(dbClient, verifyResult.content.username);
+    } catch (e) {
+      /* istanbul ignore else */
+      if (e.statusCode === 404) {
+        throw new AuthenticationError();
+      } else {
+        throw e;
+      }
+    }
+
+    // Create new AccessToken
+    const accessToken = createAccessToken(
+      verifyResult.content.username,
+      req.app.get('jwtAccessKey')
+    );
+
+    // Response
+    const cookieOption: express.CookieOptions = {
+      httpOnly: true,
+      maxAge: 120 * 60,
+      secure: true,
+      domain: 'api.calendar.busandev.com',
+      path: '/auth',
+      sameSite: 'strict',
+    };
+    if (refreshToken !== undefined) {
+      res.cookie('X-REFRESH-TOKEN', refreshToken, cookieOption);
+    }
+    cookieOption.maxAge = 15 * 60;
+    cookieOption.path = '/';
+    res.cookie('X-ACCESS-TOKEN', accessToken, cookieOption);
     res.status(200).send();
   } catch (e) {
     next(e);
