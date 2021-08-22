@@ -91,4 +91,25 @@ export default class Admin implements LoginCredentials {
       new Date(queryResult[0].membersince)
     );
   }
+
+  /**
+   * Delete an existing entry in admin table
+   *
+   * @param dbClient DB Connection Pool
+   * @param username username associated with the Admin
+   * @return {Promise<mariadb.UpsertResult>} db operation result
+   */
+  static async delete(
+    dbClient: mariadb.Pool,
+    username: string
+  ): Promise<mariadb.UpsertResult> {
+    const queryResult = await dbClient.query(
+      'DELETE FROM admin WHERE username = ?',
+      username
+    );
+    if (queryResult.affectedRows === 0) {
+      throw new NotFoundError();
+    }
+    return queryResult;
+  }
 }

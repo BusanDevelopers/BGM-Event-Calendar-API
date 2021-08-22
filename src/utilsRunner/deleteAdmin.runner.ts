@@ -1,39 +1,32 @@
 /**
- * Runner to execute newAdmin() function on the command-line
- *  - Generate new admin account
+ * Runner to execute deleteAdmin() function on the command-line
+ *  - Delete an exsiting admin account
  *
- * Need three Command-Line Arguments (Starts from 2)
+ * Need one Command-Line Arguments (Starts from 2)
  *  2. username
- *  3. password
- *  4. name
  *
  * @author Hyecheol (Jerry) Jang <hyecheol123@gmail.com>
  */
 
 import ServerConfig from '../ServerConfig';
-import newAdmin from '../functions/utils/newAdmin';
+import deleteAdmin from '../functions/utils/deleteAdmin';
 
-// Check Command-Line Argument (2 for system-generated, 3 provided)
-if (process.argv.length !== 5) {
+// Check Command-Line Argument (2 for system-generated, 1 provided)
+if (process.argv.length !== 3) {
   console.error(
     String.prototype.concat(
       'Incorrect number of command-line arguments provided!!\n\n',
       'Please check how to use the function and try again.\n',
-      'usage: node dist/utilsRunner/newAdmin.runner.js [username] [password] [name]'
+      'usage: node dist/utilsRunner/deleteAdmin.runner.js [username] [password] [name]'
     )
   );
   // eslint-disable-next-line no-process-exit
   process.exit(1);
 }
-// Parse username, password, and name / Call newAdmin()
+
+// Parse username and Call deleteAdmin()
 const config = new ServerConfig();
-newAdmin(
-  process.argv[2],
-  process.argv[3],
-  process.argv[4],
-  ServerConfig.hash,
-  config
-).then(
+deleteAdmin(process.argv[2], config).then(
   // DB Operation Success
   value => {
     if (value.affectedRows !== 1) {
@@ -46,12 +39,12 @@ newAdmin(
       // eslint-disable-next-line no-process-exit
       process.exit(1);
     } else {
-      console.log('Successfully add new admin account');
+      console.log('Successfully deleted existing admin account');
       // eslint-disable-next-line no-process-exit
       process.exit();
     }
   },
-  // When DB Operation failed
+  // DB Operation Fail
   error => {
     console.error(error);
     // eslint-disable-next-line no-process-exit
