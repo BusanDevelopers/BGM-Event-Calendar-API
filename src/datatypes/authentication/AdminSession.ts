@@ -41,7 +41,7 @@ export default class AdminSession {
   ): Promise<mariadb.UpsertResult> {
     return await dbClient.query(
       String.prototype.concat(
-        'INSERT INTO admin_session ',
+        'REPLACE INTO admin_session ',
         '(username, token, expires) ',
         'VALUES (?, ?, ?)'
       ),
