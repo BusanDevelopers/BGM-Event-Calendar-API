@@ -30,6 +30,8 @@ export default async function deleteAdmin(
   });
   let result;
   try {
+    // Delete of admin record automatically deletes admin_session information
+    // ON DELETE CASCADE
     result = await Admin.delete(dbClient, username);
     await dbClient.end();
   } catch (e) {
