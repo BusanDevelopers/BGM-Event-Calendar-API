@@ -14,6 +14,15 @@ import RefreshTokenVerifyResult from '../../datatypes/authentication/RefreshToke
 import AuthenticationError from '../../exceptions/AuthenticationError';
 import createRefreshToken from './createRefreshToken';
 
+/**
+ * Method to verify refreshToken
+ *
+ * @param req Express Request object
+ * @param jwtRefreshKey JWT Refresh Token secret
+ * @param dbClient DB Connection Pool
+ * @return {Promise<RefreshTokenVerifyResult>} verification result of refresh token
+ *   (new token included if the refresh token is about to expire)
+ */
 export default async function verifyRefreshToken(
   req: Request,
   jwtRefreshKey: string,

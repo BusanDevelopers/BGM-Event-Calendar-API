@@ -17,6 +17,7 @@ import checkPasswordRule from '../functions/inputValidator/checkPasswordRule';
 import createAccessToken from '../functions/JWT/createAccessToken';
 import createRefreshToken from '../functions/JWT/createRefreshToken';
 import verifyRefreshToken from '../functions/JWT/verifyRefreshToken';
+import AdminSession from '../datatypes/authentication/AdminSession';
 
 // Path: /auth
 const authRouter = express.Router();
@@ -111,8 +112,13 @@ authRouter.delete('/logout', async (req, res, next) => {
       refreshToken = verifyResult.newToken;
     }
 
-    // TODO: Remove token from DB
-    // TODO: Clear Cookie & Response
+    // Remove token from DB
+    await AdminSession.deleteByToken(dbClient, refreshToken);
+
+    // Clear Cookie & Response
+    res.clearCookie('X-ACCESS-TOKEN', {httpOnly: true, maxAge: 0});
+    res.clearCookie('X-REFRESH-TOKEN', {httpOnly: true, maxAge: 0});
+    res.status(200).send();
   } catch (e) {
     next(e);
   }
