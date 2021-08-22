@@ -84,13 +84,162 @@ describe('GET /auth/renew - renew access/refresh token', () => {
     expect(tokenPayload.type).toBe('access');
   });
 
-  test('Success - Refresh Token about to expire', async () => {});
+  test('Success - Refresh Token about to expire', async () => {
+    const currentDate = new Date();
 
-  test('Fail - Invalid Token', async () => {});
+    // Login
+    MockDate.set(currentDate);
+    let response = await request(testEnv.expressServer.app)
+      .post('/auth/login')
+      .send({username: 'testuser1', password: 'Password13!'});
+    expect(response.status).toBe(200);
+    const refreshToken = response.header['set-cookie'][1]
+      .split('; ')[0]
+      .split('=')[1];
 
-  test('Fail - No Token', async () => {});
+    // Passed 110 min (Refresh token about to expire, access token expired)
+    currentDate.setMinutes(currentDate.getMinutes() + 110);
+    MockDate.set(currentDate);
+    // Renew Request
+    response = await request(testEnv.expressServer.app)
+      .get('/auth/renew')
+      .set('Cookie', [`X-REFRESH-TOKEN=${refreshToken}`]);
+    expect(response.status).toBe(200);
 
-  test('Fail - Token not in DB (logged out)', async () => {});
+    // Check Cookie and Token Values
+    const jwtOption: jwt.VerifyOptions = {algorithms: ['HS512']};
+    // Parse Refresh Token
+    let cookie = response.header['set-cookie'][0].split('; ')[0].split('=');
+    expect(cookie[0]).toBe('X-REFRESH-TOKEN'); // Check for Refresh Token Name
+    let tokenPayload = jwt.verify(
+      cookie[1],
+      testEnv.testConfig.jwt.refreshKey,
+      jwtOption
+    ) as AuthToken; // Check for AccessToken contents
+    expect(tokenPayload.username).toBe('testuser1');
+    expect(tokenPayload.type).toBe('refresh');
+    // Parse Access Token
+    cookie = response.header['set-cookie'][1].split('; ')[0].split('=');
+    expect(cookie[0]).toBe('X-ACCESS-TOKEN'); // Check for Access Token Name
+    tokenPayload = jwt.verify(
+      cookie[1],
+      testEnv.testConfig.jwt.secretKey,
+      jwtOption
+    ) as AuthToken; // Check for AccessToken contents
+    expect(tokenPayload.username).toBe('testuser1');
+    expect(tokenPayload.type).toBe('access');
+  });
 
-  test('Fail - Admin user deleted', async () => {});
+  test('Fail - Invalid Token', async () => {
+    const currentDate = new Date();
+
+    // Login
+    MockDate.set(currentDate);
+    let response = await request(testEnv.expressServer.app)
+      .post('/auth/login')
+      .send({username: 'testuser1', password: 'Password13!'});
+    expect(response.status).toBe(200);
+    const accessToken = response.header['set-cookie'][0]
+      .split('; ')[0]
+      .split('=')[1];
+
+    // Passed 10 min (Both tokens alive)
+    currentDate.setMinutes(currentDate.getMinutes() + 10);
+    MockDate.set(currentDate);
+    // Renew Request
+    response = await request(testEnv.expressServer.app)
+      .get('/auth/renew')
+      .set('Cookie', [`X-REFRESH-TOKEN=${accessToken}`]);
+    expect(response.status).toBe(401);
+
+    // Check Cookie and Token Values
+    expect(response.header['set-cookie']).toBeUndefined();
+  });
+
+  test('Fail - No Token', async () => {
+    const currentDate = new Date();
+
+    // Login
+    MockDate.set(currentDate);
+    let response = await request(testEnv.expressServer.app)
+      .post('/auth/login')
+      .send({username: 'testuser1', password: 'Password13!'});
+    expect(response.status).toBe(200);
+
+    // Passed 10 min (Both tokens alive)
+    currentDate.setMinutes(currentDate.getMinutes() + 10);
+    MockDate.set(currentDate);
+    // Renew Request
+    response = await request(testEnv.expressServer.app).get('/auth/renew');
+    expect(response.status).toBe(401);
+
+    // Check Cookie and Token Values
+    expect(response.header['set-cookie']).toBeUndefined();
+  });
+
+  test('Fail - Token not in DB (logged out)', async () => {
+    const currentDate = new Date();
+
+    // Login
+    MockDate.set(currentDate);
+    let response = await request(testEnv.expressServer.app)
+      .post('/auth/login')
+      .send({username: 'testuser1', password: 'Password13!'});
+    expect(response.status).toBe(200);
+    const refreshToken = response.header['set-cookie'][1]
+      .split('; ')[0]
+      .split('=')[1];
+
+    // Logout
+    currentDate.setSeconds(currentDate.getSeconds() + 1);
+    MockDate.set(currentDate);
+    response = await request(testEnv.expressServer.app)
+      .delete('/auth/logout')
+      .set('Cookie', [`X-REFRESH-TOKEN=${refreshToken}`]);
+    expect(response.status).toBe(200);
+
+    // Passed 20 min (Refresh token alive, access token expired
+    currentDate.setMinutes(currentDate.getMinutes() + 20);
+    MockDate.set(currentDate);
+    // Renew Request
+    response = await request(testEnv.expressServer.app)
+      .get('/auth/renew')
+      .set('Cookie', [`X-REFRESH-TOKEN=${refreshToken}`]);
+    expect(response.status).toBe(401);
+
+    // Check Cookie & token Information
+    expect(response.header['set-cookie']).toBeUndefined();
+  });
+
+  test('Fail - Admin user deleted', async () => {
+    const currentDate = new Date();
+
+    // Login
+    MockDate.set(currentDate);
+    let response = await request(testEnv.expressServer.app)
+      .post('/auth/login')
+      .send({username: 'testuser1', password: 'Password13!'});
+    expect(response.status).toBe(200);
+    const refreshToken = response.header['set-cookie'][1]
+      .split('; ')[0]
+      .split('=')[1];
+
+    // Remove admin entry
+    await testEnv.dbClient.query(
+      'DELETE from admin where username = ?',
+      'testuser1'
+    );
+
+    // Passed 20 min (Refresh token alive, access token expired
+    currentDate.setMinutes(currentDate.getMinutes() + 20);
+    MockDate.set(currentDate);
+    // Renew Request
+    response = await request(testEnv.expressServer.app)
+      .get('/auth/renew')
+      .set('Cookie', [`X-REFRESH-TOKEN=${refreshToken}`]);
+    expect(response.status).toBe(401);
+
+    // Check Cookie & token Information
+    expect(response.header['set-cookie']).toBeUndefined();
+  });
 });

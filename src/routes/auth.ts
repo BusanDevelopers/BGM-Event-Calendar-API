@@ -140,16 +140,8 @@ authRouter.get('/renew', async (req, res, next) => {
     const refreshToken = verifyResult.newToken;
 
     // Check admin user existence
-    try {
-      await Admin.read(dbClient, verifyResult.content.username);
-    } catch (e) {
-      /* istanbul ignore else */
-      if (e.statusCode === 404) {
-        throw new AuthenticationError();
-      } else {
-        throw e;
-      }
-    }
+    // When admin user entry deleted, associated admin_session also removed
+    // (ON DELETE CASCADE)
 
     // Create new AccessToken
     const accessToken = createAccessToken(
