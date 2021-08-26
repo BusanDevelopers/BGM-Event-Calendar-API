@@ -10,7 +10,6 @@ import * as mariadb from 'mariadb';
  * Class for Event
  */
 export default class Event {
-  eventId?: number; // Only included in response
   date: Date; // Event Date
   name: string; // Event Name
   detail: string | null; // Event detailed description
@@ -25,20 +24,17 @@ export default class Event {
    * @param editor username of admin who edit the event lastly
    * @param detail Event detailed description
    * @param category Event category
-   * @param eventId EventID (Unique number), only included in response
    */
   constructor(
     date: Date,
     name: string,
     editor: string,
     detail?: string,
-    category?: string,
-    eventId?: number
+    category?: string
   ) {
     this.date = date;
     this.name = name;
     this.editor = editor;
-    this.eventId = eventId;
     this.detail = null;
     this.category = null;
     if (detail !== undefined) {

@@ -17,7 +17,7 @@ import AuthenticationError from '../../exceptions/AuthenticationError';
  * @param jwtAccessKey jwt access key secret
  * @return {AuthToken} authentication token contents
  */
-export default function accessTokenVerify(
+export default function verifyAccessToken(
   req: Request,
   jwtAccessKey: string
 ): AuthToken {
