@@ -160,7 +160,7 @@ export default class TestEnv {
     const eventSamples = [];
     // 2021-10-31, 할로윈 파티, N/A, 네트워킹, testuser1
     eventSamples.push([
-      new Date('2021-10-31'),
+      new Date(2021, 9, 31),
       '할로윈 파티',
       null,
       '네트워킹',
@@ -168,7 +168,7 @@ export default class TestEnv {
     ]);
     // 2021-08-15, 광복절, N/A, N/A, testuser1
     eventSamples.push([
-      new Date('2021-08-15'),
+      new Date(2021, 7, 15),
       '광복절',
       null,
       null,
@@ -176,7 +176,7 @@ export default class TestEnv {
     ]);
     // 2021-08-26, 비대면 정기 모임, 음에서 비대면 정기 모임을 개최합니다., 비대면 모임, testuser2
     eventSamples.push([
-      new Date('2021-08-26'),
+      new Date(2021, 7, 26),
       '비대면 정기 모임',
       '음에서 비대면 정기 모임을 개최합니다.',
       '비대면 모임',
@@ -184,7 +184,7 @@ export default class TestEnv {
     ]);
     // 2021-12-31, 연말 결산 모임, 연말을 맞아 BGM 회원끼리 모여 서로의 일년은 어땠는지, 내년 목표는 무엇인지에 관해 이야기해보려 합니다., N/A, testuser1
     eventSamples.push([
-      new Date('2021-12-31'),
+      new Date(2021, 11, 31),
       '연말 결산 모임',
       '연말을 맞아 BGM 회원끼리 모여 서로의 일년은 어땠는지, 내년 목표는 무엇인지에 관해 이야기해보려 합니다.',
       null,

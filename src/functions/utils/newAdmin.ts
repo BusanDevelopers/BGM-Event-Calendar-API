@@ -9,8 +9,8 @@ import * as mariadb from 'mariadb';
 import {BinaryLike} from 'crypto';
 import ServerConfigTemplate from '../../ServerConfigTemplate';
 import Admin from '../../datatypes/authentication/Admin';
-import checkUsernameRule from '../inputValidator/checkUsernameRule';
-import checkPasswordRule from '../inputValidator/checkPasswordRule';
+import checkUsernameRule from '../inputValidator/admin/checkUsernameRule';
+import checkPasswordRule from '../inputValidator/admin/checkPasswordRule';
 
 /**
  * Function to add new admin account

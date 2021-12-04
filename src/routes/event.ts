@@ -1,0 +1,70 @@
+/**
+ * express Router middleware for Event APIs
+ *
+ * @author Hyecheol (Jerry) Jang <hyecheol123@gmail.com>
+ */
+
+import * as express from 'express';
+import * as mariadb from 'mariadb';
+import BadRequestError from '../exceptions/BadRequestError';
+import Event from '../datatypes/event/Event';
+import EventForm from '../datatypes/event/EventForm';
+import {validateEventForm} from '../functions/inputValidator/event/validateEventForm';
+import verifyAccessToken from '../functions/JWT/verifyAccessToken';
+
+// Path: /event
+const eventRouter = express.Router();
+
+// POST: /event
+eventRouter.post('/', async (req, res, next) => {
+  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+
+  try {
+    // Verify Access Token
+    const verifyResult = await verifyAccessToken(
+      req,
+      req.app.get('jwtAccessKey')
+    );
+
+    // Verify User Input
+    const eventForm: EventForm = req.body;
+    if (!validateEventForm(eventForm)) {
+      throw new BadRequestError();
+    }
+    // Check Month and Date
+    const endDate = new Date(eventForm.year, eventForm.month, 0).getDate();
+    if (endDate < eventForm.date) {
+      throw new BadRequestError();
+    }
+
+    // Generate Event Object
+    const eventDate = new Date(
+      eventForm.year,
+      eventForm.month - 1, // using month index
+      eventForm.date
+    );
+    const event = new Event(
+      eventDate,
+      eventForm.name,
+      verifyResult.username,
+      eventForm.detail,
+      eventForm.category
+    );
+
+    // DB Operation
+    await Event.create(dbClient, event);
+
+    // Response
+    res.status(200).send();
+  } catch (e) {
+    next(e);
+  }
+});
+
+// GET: /event/{eventID}
+
+// PUT: /event/{eventID}
+
+// DELETE: /event/{eventID}
+
+export default eventRouter;

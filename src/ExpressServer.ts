@@ -10,6 +10,7 @@ import * as cookieParser from 'cookie-parser';
 import ServerConfig from './ServerConfig';
 import HTTPError from './exceptions/HTTPError';
 import authRouter from './routes/auth';
+import eventRouter from './routes/event';
 
 /**
  * Class contains Express Application and other relevant instances/functions
@@ -61,6 +62,7 @@ export default class ExpressServer {
 
     // Routers
     this.app.use('/auth', authRouter);
+    this.app.use('/event', eventRouter);
 
     // Default Error Handler
     this.app.use(
