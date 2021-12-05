@@ -166,7 +166,7 @@ export default class TestEnv {
       '네트워킹',
       'testuser1',
     ]);
-    // 2021-08-15, 광복절, N/A, N/A, testuser1
+    // 2021-08-15, 광복절, N/A, N/A, testuser2
     eventSamples.push([
       new Date(2021, 7, 15),
       '광복절',

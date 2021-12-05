@@ -20,12 +20,7 @@ describe('POST /event - Create new event', () => {
     username: 'testuser1',
     password: 'Password13!',
   };
-  const requiredPayload = {
-    year: 2022,
-    month: 1,
-    date: 1,
-    name: '신년 해돋이',
-  };
+  const requiredPayload = {year: 2022, month: 1, date: 1, name: '신년 해돋이'};
 
   beforeAll(() => {
     jest.setTimeout(120000);
@@ -119,10 +114,7 @@ describe('POST /event - Create new event', () => {
     response = await request(testEnv.expressServer.app)
       .post('/event')
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
-      .send({
-        ...requiredPayload,
-        category: '네트워킹',
-      });
+      .send({...requiredPayload, category: '네트워킹'});
     expect(response.status).toBe(200);
 
     // DB Test
@@ -293,12 +285,7 @@ describe('POST /event - Create new event', () => {
     response = await request(testEnv.expressServer.app)
       .post('/event')
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
-      .send({
-        year: 2022,
-        month: 2,
-        date: 30,
-        name: 'BGM 워크샵',
-      });
+      .send({year: 2022, month: 2, date: 30, name: 'BGM 워크샵'});
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Bad Request');
 
