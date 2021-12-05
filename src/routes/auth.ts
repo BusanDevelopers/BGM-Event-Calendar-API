@@ -12,14 +12,14 @@ import BadRequestError from '../exceptions/BadRequestError';
 import Admin from '../datatypes/authentication/Admin';
 import AdminSession from '../datatypes/authentication/AdminSession';
 import LoginCredentials from '../datatypes/authentication/LoginCredentials';
+import ChangePasswordForm from '../datatypes/authentication/ChangePasswordForm';
 import {validateLoginCredentials} from '../functions/inputValidator/admin/validateLoginCredentials';
+import {validateChangePasswordForm} from '../functions/inputValidator/admin/validateChangePasswordForm';
 import checkUsernameRule from '../functions/inputValidator/admin/checkUsernameRule';
 import checkPasswordRule from '../functions/inputValidator/admin/checkPasswordRule';
 import createAccessToken from '../functions/JWT/createAccessToken';
 import createRefreshToken from '../functions/JWT/createRefreshToken';
 import verifyRefreshToken from '../functions/JWT/verifyRefreshToken';
-import ChangePasswordForm from '../datatypes/authentication/ChangePasswordForm';
-import {validateChangePasswordForm} from '../functions/inputValidator/admin/validateChangePasswordForm';
 
 // Path: /auth
 const authRouter = express.Router();
