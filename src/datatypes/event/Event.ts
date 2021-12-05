@@ -5,6 +5,7 @@
  */
 
 import * as mariadb from 'mariadb';
+import NotFoundError from '../../exceptions/NotFoundError';
 
 /**
  * Class for Event
@@ -64,5 +65,26 @@ export default class Event {
       ),
       [event.date, event.name, event.detail, event.category, event.editor]
     );
+  }
+
+  /**
+   * Delete an existing event from database
+   *
+   * @param dbClient DB Connection Pool
+   * @param eventID unique event ID associated with the Event
+   * @return {Promise<mariadb.UpsertResult>} db operation result
+   */
+  static async delete(
+    dbClient: mariadb.Pool,
+    eventID: number
+  ): Promise<mariadb.UpsertResult> {
+    const queryResult = await dbClient.query(
+      'DELETE FROM table WHERE id = ?',
+      eventID
+    );
+    if (queryResult.affectedRows === 0) {
+      throw new NotFoundError();
+    }
+    return queryResult;
   }
 }

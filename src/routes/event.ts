@@ -66,5 +66,27 @@ eventRouter.post('/', async (req, res, next) => {
 // PUT: /event/{eventID}
 
 // DELETE: /event/{eventID}
+eventRouter.delete('/:eventId', async (req, res, next) => {
+  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+  const eventId = parseInt(req.params.eventId);
+
+  try {
+    // Verify Admin Access Token
+    await verifyAccessToken(req, req.app.get('jwtAccessKey'));
+
+    // Check for numeric id, >= 1
+    if (isNaN(eventId) || eventId < 1) {
+      throw new BadRequestError();
+    }
+
+    // DB Operation
+    await Event.delete(dbClient, eventId);
+
+    // Response
+    res.status(200).send();
+  } catch (e) {
+    next(e);
+  }
+});
 
 export default eventRouter;
