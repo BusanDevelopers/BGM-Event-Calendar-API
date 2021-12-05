@@ -7,6 +7,18 @@
 import * as mariadb from 'mariadb';
 
 /**
+ * Interface to define event entry in DB
+ */
+interface EventDB {
+  id: number;
+  date: string;
+  name: string;
+  detail: string | null;
+  category: string | null;
+  editor: string;
+}
+
+/**
  * Class for Event
  */
 export default class Event {
@@ -31,8 +43,8 @@ export default class Event {
     date: Date,
     name: string,
     editor: string,
-    detail?: string,
-    category?: string,
+    detail?: string | null,
+    category?: string | null,
     id?: number
   ) {
     this.date = date;
@@ -91,13 +103,9 @@ export default class Event {
       [startDate, endDate]
     );
 
-    return queryResult.map(
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-ignore
-      qr => {
-        const {date, name, editor, detail, category, id} = qr;
-        return new Event(new Date(date), name, editor, detail, category, id);
-      }
-    );
+    return queryResult.map((qr: EventDB) => {
+      const {date, name, editor, detail, category, id} = qr;
+      return new Event(new Date(date), name, editor, detail, category, id);
+    });
   }
 }
