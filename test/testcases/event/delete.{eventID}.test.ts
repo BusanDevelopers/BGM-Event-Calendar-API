@@ -12,10 +12,7 @@ describe('DELETE /event/{eventID} - Delete an existing event', () => {
   let testEnv: TestEnv;
 
   // Information that used during the test
-  const loginCredentials = {
-    username: 'testuser1',
-    password: 'Password13!',
-  };
+  const loginCredentials = {username: 'testuser1', password: 'Password13!'};
 
   beforeAll(() => {
     jest.setTimeout(120000);
