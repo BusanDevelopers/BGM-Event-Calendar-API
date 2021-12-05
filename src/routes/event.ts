@@ -63,6 +63,33 @@ eventRouter.post('/', async (req, res, next) => {
 });
 
 // GET: /event/{eventID}
+eventRouter.get('/:eventId', async (req, res, next) => {
+  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+  const eventId = parseInt(req.params.eventId);
+
+  try {
+    // Check for numeric id, >= 1
+    if (isNaN(eventId) || eventId < 1) {
+      throw new NotFoundError();
+    }
+
+    // DB Operation
+    const event = await Event.read(dbClient, eventId);
+
+    // Response
+    const resObj: EventForm = {
+      year: event.date.getFullYear(),
+      month: event.date.getMonth() + 1,
+      date: event.date.getDate(),
+      name: event.name,
+    };
+    resObj.detail = event.detail ? event.detail : undefined;
+    resObj.category = event.category ? event.category : undefined;
+    res.status(200).json(resObj);
+  } catch (e) {
+    next(e);
+  }
+});
 
 // PUT: /event/{eventID}
 
