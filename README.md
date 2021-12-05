@@ -49,7 +49,7 @@ Data Diagram
   `admin_session` 테이블을 만들기 위한 SQL 쿼리
   ``` SQL
   CREATE TABLE admin_session (
-    username VARCHAR(12) NOT NULL,
+    username VARCHAR(12) NOT NULL UNIQUE,
     FOREIGN KEY (username) REFERENCES admin(username) ON DELETE CASCADE ON UPDATE CASCADE,
     token VARCHAR(255) NOT NULL PRIMARY KEY,
     expires TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,

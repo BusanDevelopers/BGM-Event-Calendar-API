@@ -88,7 +88,7 @@ export default class TestEnv {
     await this.dbClient.query(
       String.prototype.concat(
         'CREATE TABLE admin_session (',
-        'username VARCHAR(12) NOT NULL,',
+        'username VARCHAR(12) NOT NULL UNIQUE,',
         'FOREIGN KEY (username) REFERENCES admin(username) ON DELETE CASCADE ON UPDATE CASCADE,',
         'token VARCHAR(255) NOT NULL PRIMARY KEY,',
         'expires TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,',
