@@ -79,7 +79,7 @@ export default class Event {
     eventID: number
   ): Promise<mariadb.UpsertResult> {
     const queryResult = await dbClient.query(
-      'DELETE FROM table WHERE id = ?',
+      'DELETE FROM event WHERE id = ?',
       eventID
     );
     if (queryResult.affectedRows === 0) {

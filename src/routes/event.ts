@@ -7,6 +7,7 @@
 import * as express from 'express';
 import * as mariadb from 'mariadb';
 import BadRequestError from '../exceptions/BadRequestError';
+import NotFoundError from '../exceptions/NotFoundError';
 import Event from '../datatypes/event/Event';
 import EventForm from '../datatypes/event/EventForm';
 import {validateEventForm} from '../functions/inputValidator/event/validateEventForm';
@@ -76,7 +77,7 @@ eventRouter.delete('/:eventId', async (req, res, next) => {
 
     // Check for numeric id, >= 1
     if (isNaN(eventId) || eventId < 1) {
-      throw new BadRequestError();
+      throw new NotFoundError();
     }
 
     // DB Operation
