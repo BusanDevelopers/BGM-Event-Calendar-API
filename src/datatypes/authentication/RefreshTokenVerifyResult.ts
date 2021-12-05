@@ -15,4 +15,10 @@ import AuthToken from './AuthToken';
 export default interface RefreshTokenVerifyResult {
   content: AuthToken; // token contents
   newToken?: string; // new JWT token (created when the token is about to expire)
+  oldSession?: {
+    // Created when the token is about to expire
+    username: string;
+    expires: Date; // Previous expiration time
+    token: string; // Old JWT Token
+  };
 }

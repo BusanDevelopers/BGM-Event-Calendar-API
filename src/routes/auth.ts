@@ -18,6 +18,8 @@ import checkPasswordRule from '../functions/inputValidator/admin/checkPasswordRu
 import createAccessToken from '../functions/JWT/createAccessToken';
 import createRefreshToken from '../functions/JWT/createRefreshToken';
 import verifyRefreshToken from '../functions/JWT/verifyRefreshToken';
+import ChangePasswordForm from '../datatypes/authentication/ChangePasswordForm';
+import {validateChangePasswordForm} from '../functions/inputValidator/admin/validateChangePasswordForm';
 
 // Path: /auth
 const authRouter = express.Router();
@@ -164,6 +166,97 @@ authRouter.get('/renew', async (req, res, next) => {
     cookieOption.maxAge = 15 * 60;
     cookieOption.path = '/';
     res.cookie('X-ACCESS-TOKEN', accessToken, cookieOption);
+    res.status(200).send();
+  } catch (e) {
+    next(e);
+  }
+});
+
+authRouter.put('/password', async (req, res, next) => {
+  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+
+  try {
+    // Verify refresh Token
+    const verifyResult = await verifyRefreshToken(
+      req,
+      req.app.get('jwtRefreshKey'),
+      dbClient
+    );
+    // Refresh Token about to expire (Generated new token)
+    // When no refreshToken created, the variable will be undefined
+    const refreshToken = verifyResult.newToken;
+
+    // Verify user input
+    const changePasswordForm: ChangePasswordForm = req.body;
+    if (!validateChangePasswordForm(changePasswordForm)) {
+      // Write previous session data before throw error
+      if (refreshToken) {
+        await AdminSession.create(
+          dbClient,
+          verifyResult.oldSession as AdminSession
+        );
+      }
+      throw new BadRequestError();
+    }
+    // Password Rule check for new password
+    if (
+      !checkPasswordRule(
+        verifyResult.content.username,
+        changePasswordForm.newPassword
+      )
+    ) {
+      // Write previous session data before throw error
+      if (refreshToken) {
+        await AdminSession.create(
+          dbClient,
+          verifyResult.oldSession as AdminSession
+        );
+      }
+      throw new BadRequestError();
+    }
+
+    // Check whether the current password matches or not
+    const admin = await Admin.read(dbClient, verifyResult.content.username);
+    const hashedCurrentPW = ServerConfig.hash(
+      admin.username,
+      admin.memberSince.toISOString(),
+      changePasswordForm.currentPassword
+    );
+    if (hashedCurrentPW !== admin.password) {
+      // Write previous session data before throw error
+      if (refreshToken) {
+        await AdminSession.create(
+          dbClient,
+          verifyResult.oldSession as AdminSession
+        );
+      }
+      throw new BadRequestError();
+    }
+
+    // Change Password
+    const hashedNewPW = ServerConfig.hash(
+      admin.username,
+      admin.memberSince.toISOString(),
+      changePasswordForm.newPassword
+    );
+    await Admin.updatePassword(
+      dbClient,
+      verifyResult.content.username,
+      hashedNewPW
+    );
+
+    // Response
+    if (refreshToken) {
+      const cookieOption: express.CookieOptions = {
+        httpOnly: true,
+        maxAge: 120 * 60,
+        secure: true,
+        domain: 'api.calendar.busandev.com',
+        path: '/auth',
+        sameSite: 'strict',
+      };
+      res.cookie('X-REFRESH-TOKEN', refreshToken, cookieOption);
+    }
     res.status(200).send();
   } catch (e) {
     next(e);

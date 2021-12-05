@@ -93,6 +93,26 @@ export default class Admin implements LoginCredentials {
   }
 
   /**
+   * Update password of existing entry in admin table
+   *
+   * @param dbClient DB Connection Pool
+   * @param username username associated with the Admin
+   * @param password new password (Hashed)
+   * @return {Promise<mariadb.UpsertResult>} db operation result
+   */
+  static async updatePassword(
+    dbClient: mariadb.Pool,
+    username: string,
+    password: string
+  ): Promise<mariadb.UpsertResult> {
+    const args = [password, username];
+    return dbClient.query(
+      'UPDATE admin SET password = ? WHERE username = ?',
+      args
+    );
+  }
+
+  /**
    * Delete an existing entry in admin table
    *
    * @param dbClient DB Connection Pool

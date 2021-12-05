@@ -67,6 +67,7 @@ export default async function verifyRefreshToken(
   const expectedExpire = new Date();
   expectedExpire.setMinutes(new Date().getMinutes() + 20);
   let newRefreshToken;
+  let oldSession;
   if (new Date((tokenContents.exp as number) * 1000) < expectedExpire) {
     // Less than 20 min remaining
     newRefreshToken = await createRefreshToken(
@@ -74,9 +75,18 @@ export default async function verifyRefreshToken(
       tokenContents.username,
       jwtRefreshKey
     );
+    oldSession = {
+      username: tokenContents.username,
+      expires: new Date((tokenContents.exp as number) * 1000),
+      token: req.cookies['X-REFRESH-TOKEN'],
+    };
   }
 
   delete tokenContents.iat;
   delete tokenContents.exp;
-  return {content: tokenContents as AuthToken, newToken: newRefreshToken};
+  return {
+    content: tokenContents as AuthToken,
+    newToken: newRefreshToken,
+    oldSession: oldSession,
+  };
 }
