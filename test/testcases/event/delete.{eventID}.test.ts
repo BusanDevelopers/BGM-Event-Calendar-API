@@ -50,9 +50,14 @@ describe('DELETE /event/{eventID} - Delete an existing event', () => {
       .send({year: 2022, month: 1, date: 1, name: '신년 해돋이'});
     expect(response.status).toBe(200);
 
+    // Get Event ID for newly registered event
+    response = await request(testEnv.expressServer.app).get('/2022-1');
+    expect(response.status).toBe(200);
+    const eventId = response.body.eventList[0].id;
+
     // Delete the event
     response = await request(testEnv.expressServer.app)
-      .delete('/event/5')
+      .delete(`/event/${eventId}`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
     expect(response.status).toBe(200);
 
@@ -60,13 +65,13 @@ describe('DELETE /event/{eventID} - Delete an existing event', () => {
     const queryResult = await testEnv.dbClient.query('SELECT * FROM event');
     expect(queryResult.length).toBe(4);
     const checkTarget = queryResult.filter((r: {id: number}) => r.id === 1);
-    expect(checkTarget.date.toISOString()).toBe(
+    expect(checkTarget[0].date.toISOString()).toBe(
       new Date(2021, 9, 31).toISOString()
     );
-    expect(checkTarget.name).toBe('할로윈 파티');
-    expect(checkTarget.detail).toBe(undefined);
-    expect(checkTarget.category).toBe('네트워킹');
-    expect(checkTarget.editor).toBe('testuser1');
+    expect(checkTarget[0].name).toBe('할로윈 파티');
+    expect(checkTarget[0].detail).toBe(null);
+    expect(checkTarget[0].category).toBe('네트워킹');
+    expect(checkTarget[0].editor).toBe('testuser1');
   });
 
   test('Success - Delete event that I previously registered', async () => {
@@ -89,13 +94,13 @@ describe('DELETE /event/{eventID} - Delete an existing event', () => {
     const queryResult = await testEnv.dbClient.query('SELECT * FROM event');
     expect(queryResult.length).toBe(3);
     const checkTarget = queryResult.filter((r: {id: number}) => r.id === 2);
-    expect(checkTarget.date.toISOString()).toBe(
+    expect(checkTarget[0].date.toISOString()).toBe(
       new Date(2021, 7, 15).toISOString()
     );
-    expect(checkTarget.name).toBe('광복절');
-    expect(checkTarget.detail).toBe(undefined);
-    expect(checkTarget.category).toBe(undefined);
-    expect(checkTarget.editor).toBe('testuser2');
+    expect(checkTarget[0].name).toBe('광복절');
+    expect(checkTarget[0].detail).toBe(null);
+    expect(checkTarget[0].category).toBe(null);
+    expect(checkTarget[0].editor).toBe('testuser2');
   });
 
   test('Success - Delete event that other person registered', async () => {
@@ -118,20 +123,100 @@ describe('DELETE /event/{eventID} - Delete an existing event', () => {
     const queryResult = await testEnv.dbClient.query('SELECT * FROM event');
     expect(queryResult.length).toBe(3);
     const checkTarget = queryResult.filter((r: {id: number}) => r.id === 2);
-    expect(checkTarget.date.toISOString()).toBe(
+    expect(checkTarget[0].date.toISOString()).toBe(
       new Date(2021, 7, 15).toISOString()
     );
-    expect(checkTarget.name).toBe('광복절');
-    expect(checkTarget.detail).toBe(undefined);
-    expect(checkTarget.category).toBe(undefined);
-    expect(checkTarget.editor).toBe('testuser2');
+    expect(checkTarget[0].name).toBe('광복절');
+    expect(checkTarget[0].detail).toBe(null);
+    expect(checkTarget[0].category).toBe(null);
+    expect(checkTarget[0].editor).toBe('testuser2');
   });
 
-  test('Success - Delete event with duplicated name', async () => {});
+  test('Success - Delete event with duplicated name', async () => {
+    // Login
+    let response = await request(testEnv.expressServer.app)
+      .post('/auth/login')
+      .send(loginCredentials);
+    expect(response.status).toBe(200);
+    const accessToken = response.header['set-cookie'][0]
+      .split('; ')[0]
+      .split('=')[1];
 
-  test('Fail - Not authorized user', async () => {});
+    // Register a event (Duplicated name with 2021-10-31's 할로윈파티)
+    response = await request(testEnv.expressServer.app)
+      .post('/event')
+      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
+      .send({year: 2022, month: 10, date: 31, name: '할로윈 파티'});
+    expect(response.status).toBe(200);
 
-  test('Fail - Invalid Event ID', async () => {});
+    // Get Event ID for newly registered event
+    response = await request(testEnv.expressServer.app).get('/2022-10');
+    expect(response.status).toBe(200);
+    const eventId = response.body.eventList[0].id;
 
-  test('Fail - Event ID Not Found', async () => {});
+    // Delete the event
+    response = await request(testEnv.expressServer.app)
+      .delete(`/event/${eventId}`)
+      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
+    expect(response.status).toBe(200);
+
+    // DB Check
+    const queryResult = await testEnv.dbClient.query('SELECT * FROM event');
+    expect(queryResult.length).toBe(4);
+    const checkTarget = queryResult.filter((r: {id: number}) => r.id === 1);
+    expect(checkTarget[0].date.toISOString()).toBe(
+      new Date(2021, 9, 31).toISOString()
+    );
+    expect(checkTarget[0].name).toBe('할로윈 파티');
+    expect(checkTarget[0].detail).toBe(null);
+    expect(checkTarget[0].category).toBe('네트워킹');
+    expect(checkTarget[0].editor).toBe('testuser1');
+  });
+
+  test('Fail - Not authorized user', async () => {
+    // Delete the event
+    const response = await request(testEnv.expressServer.app)
+      .delete('/event/3')
+      .set('Cookie', ['X-ACCESS-TOKEN=']);
+    expect(response.status).toBe(401);
+    expect(response.body.error).toBe(
+      'Authentication information is missing/invalid'
+    );
+  });
+
+  test('Fail - Invalid Event ID (Non-numeric)', async () => {
+    // Login
+    let response = await request(testEnv.expressServer.app)
+      .post('/auth/login')
+      .send(loginCredentials);
+    expect(response.status).toBe(200);
+    const accessToken = response.header['set-cookie'][0]
+      .split('; ')[0]
+      .split('=')[1];
+
+    // Delete the event
+    response = await request(testEnv.expressServer.app)
+      .delete('/event/halloween-party')
+      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe('Not Found');
+  });
+
+  test('Fail - Event ID Not Found', async () => {
+    // Login
+    let response = await request(testEnv.expressServer.app)
+      .post('/auth/login')
+      .send(loginCredentials);
+    expect(response.status).toBe(200);
+    const accessToken = response.header['set-cookie'][0]
+      .split('; ')[0]
+      .split('=')[1];
+
+    // Delete the event
+    response = await request(testEnv.expressServer.app)
+      .delete('/event/100')
+      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
+    expect(response.status).toBe(404);
+    expect(response.body.error).toBe('Not Found');
+  });
 });
