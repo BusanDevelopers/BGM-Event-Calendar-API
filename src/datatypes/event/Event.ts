@@ -131,6 +131,30 @@ export default class Event {
   }
 
   /**
+   * Update an existing event
+   *
+   * @param dbClient DB Connection Pool
+   * @param eventId unique event ID associated with the Event
+   * @param event Event Information
+   * @return {Promise<mariadb.UpsertResult>} db operation result
+   */
+  static async update(
+    dbClient: mariadb.Pool,
+    eventId: number,
+    event: Event
+  ): Promise<mariadb.UpsertResult> {
+    const {date, name, detail, category, editor} = event;
+    const queryResult = await dbClient.query(
+      'UPDATE event SET date = ?, name = ?, detail = ?, category = ?, editor = ? WHERE id = ?',
+      [date, name, detail, category, editor, eventId]
+    );
+    if (queryResult.affectedRows === 0) {
+      throw new NotFoundError();
+    }
+    return queryResult;
+  }
+
+  /**
    * Delete an existing event from database
    *
    * @param dbClient DB Connection Pool
