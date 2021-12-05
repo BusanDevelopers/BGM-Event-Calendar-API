@@ -8,9 +8,22 @@ import * as mariadb from 'mariadb';
 import NotFoundError from '../../exceptions/NotFoundError';
 
 /**
+ * Interface to define event entry in DB
+ */
+interface EventDB {
+  id: number;
+  date: string;
+  name: string;
+  detail: string | null;
+  category: string | null;
+  editor: string;
+}
+
+/**
  * Class for Event
  */
 export default class Event {
+  id: number | null; // Event ID
   date: Date; // Event Date
   name: string; // Event Name
   detail: string | null; // Event detailed description
@@ -25,25 +38,22 @@ export default class Event {
    * @param editor username of admin who edit the event lastly
    * @param detail Event detailed description
    * @param category Event category
+   * @param id numeric id (From DB)
    */
   constructor(
     date: Date,
     name: string,
     editor: string,
-    detail?: string,
-    category?: string
+    detail?: string | null,
+    category?: string | null,
+    id?: number
   ) {
     this.date = date;
     this.name = name;
     this.editor = editor;
-    this.detail = null;
-    this.category = null;
-    if (detail !== undefined) {
-      this.detail = detail;
-    }
-    if (category !== undefined) {
-      this.category = category;
-    }
+    this.detail = detail ? detail : null;
+    this.category = category ? category : null;
+    this.id = id ? id : null;
   }
 
   /**
@@ -65,6 +75,39 @@ export default class Event {
       ),
       [event.date, event.name, event.detail, event.category, event.editor]
     );
+  }
+
+  /**
+   * Retrieve events of specific month
+   *
+   * @param dbClient DB Connection Pool (mariaDB)
+   * @param year year
+   * @param month month
+   * @return {Promise<Array<Event>>} return array of Events
+   */
+  static async readByDate(
+    dbClient: mariadb.Pool,
+    year: number,
+    month: number
+  ): Promise<Array<Event>> {
+    // Get start and end date of the month
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(
+      year,
+      month - 1,
+      new Date(year, month, 0).getDate()
+    );
+
+    // Query
+    const queryResult = await dbClient.query(
+      'SELECT * FROM event WHERE date BETWEEN ? AND ?',
+      [startDate, endDate]
+    );
+
+    return queryResult.map((qr: EventDB) => {
+      const {date, name, editor, detail, category, id} = qr;
+      return new Event(new Date(date), name, editor, detail, category, id);
+    });
   }
 
   /**

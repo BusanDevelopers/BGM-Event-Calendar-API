@@ -11,6 +11,7 @@ import ServerConfig from './ServerConfig';
 import HTTPError from './exceptions/HTTPError';
 import authRouter from './routes/auth';
 import eventRouter from './routes/event';
+import calendarRouter from './routes/calendar';
 
 /**
  * Class contains Express Application and other relevant instances/functions
@@ -63,6 +64,7 @@ export default class ExpressServer {
     // Routers
     this.app.use('/auth', authRouter);
     this.app.use('/event', eventRouter);
+    this.app.use('/', calendarRouter);
 
     // Default Error Handler
     this.app.use(
