@@ -78,6 +78,26 @@ export default class Event {
   }
 
   /**
+   * Retrieve event associated with the eventID
+   *
+   * @param dbClient DB Connection Pool
+   * @param eventId unique event ID associated with the Event
+   * @return {Promise<Event>} return Event
+   */
+  static async read(dbClient: mariadb.Pool, eventId: number): Promise<Event> {
+    const queryResult = await dbClient.query(
+      'SELECT * FROM event WHERE id = ?',
+      [eventId]
+    );
+    if (queryResult.length === 0) {
+      throw new NotFoundError();
+    }
+
+    const {date, name, editor, detail, category} = queryResult[0];
+    return new Event(new Date(date), name, editor, detail, category);
+  }
+
+  /**
    * Retrieve events of specific month
    *
    * @param dbClient DB Connection Pool (mariaDB)

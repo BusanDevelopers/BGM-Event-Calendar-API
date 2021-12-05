@@ -16,10 +16,7 @@ describe('POST /event - Create new event', () => {
   let testEnv: TestEnv;
 
   // Information that used during the test
-  const loginCredentials = {
-    username: 'testuser1',
-    password: 'Password13!',
-  };
+  const loginCredentials = {username: 'testuser1', password: 'Password13!'};
   const requiredPayload = {year: 2022, month: 1, date: 1, name: '신년 해돋이'};
 
   beforeAll(() => {
