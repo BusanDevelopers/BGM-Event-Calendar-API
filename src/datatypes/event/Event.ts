@@ -148,6 +148,7 @@ export default class Event {
       'UPDATE event SET date = ?, name = ?, detail = ?, category = ?, editor = ? WHERE id = ?',
       [date, name, detail, category, editor, eventId]
     );
+    /* istanbul ignore next */
     if (queryResult.affectedRows === 0) {
       throw new NotFoundError();
     }
