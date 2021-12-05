@@ -89,6 +89,9 @@ export default class Event {
       'SELECT * FROM event WHERE id = ?',
       [eventId]
     );
+    if (queryResult.length === 0) {
+      throw new NotFoundError();
+    }
 
     const {date, name, editor, detail, category} = queryResult[0];
     return new Event(new Date(date), name, editor, detail, category);
