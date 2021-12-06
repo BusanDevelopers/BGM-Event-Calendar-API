@@ -14,6 +14,7 @@ import EventEditForm from '../datatypes/event/EventEditForm';
 import {validateEventForm} from '../functions/inputValidator/event/validateEventForm';
 import {validateEventEditForm} from '../functions/inputValidator/event/validateEventEditForm';
 import verifyAccessToken from '../functions/JWT/verifyAccessToken';
+import participateRouter from './participate';
 
 // Path: /event
 const eventRouter = express.Router();
@@ -176,5 +177,8 @@ eventRouter.delete('/:eventId', async (req, res, next) => {
     next(e);
   }
 });
+
+// Participate Router Path: /event/{eventID}/participate
+eventRouter.use('/:eventId/participate', participateRouter);
 
 export default eventRouter;
