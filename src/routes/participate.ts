@@ -12,6 +12,7 @@ import Event from '../datatypes/event/Event';
 import Participation from '../datatypes/participate/Participation';
 import ParticipationForm from '../datatypes/participate/ParticipationForm';
 import {validateParticipationForm} from '../functions/inputValidator/participate/validateParticipationForm';
+import verifyAccessToken from '../functions/JWT/verifyAccessToken';
 
 // Path: /event/{eventID}/participate
 const participateRouter = express.Router({mergeParams: true});
@@ -59,6 +60,36 @@ participateRouter.post('/', async (req, res, next) => {
       comment
     );
     await Participation.create(dbClient, newEntry);
+
+    // Response
+    res.status(200).send();
+  } catch (e) {
+    next(e);
+  }
+});
+
+// DELETE /event/{eventID}/participate/{ticketID}
+participateRouter.delete('/:ticketId', async (req, res, next) => {
+  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+  const eventId = parseInt(
+    (req.params as {eventId: string; ticketId: string}).eventId
+  );
+  const ticketId = parseInt(req.params.ticketId);
+
+  try {
+    // Verify Admin Access Token
+    await verifyAccessToken(req, req.app.get('jwtAccessKey'));
+
+    // Check for numeric id, >= 1
+    if (isNaN(eventId) || eventId < 1) {
+      throw new NotFoundError();
+    }
+    if (isNaN(ticketId) || ticketId < 1) {
+      throw new NotFoundError();
+    }
+
+    // DB Operation
+    await Participation.delete(dbClient, eventId, ticketId);
 
     // Response
     res.status(200).send();

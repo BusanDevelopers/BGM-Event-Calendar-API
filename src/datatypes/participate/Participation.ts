@@ -5,6 +5,7 @@
  */
 
 import * as mariadb from 'mariadb';
+import NotFoundError from '../../exceptions/NotFoundError';
 
 export default class Participation {
   id: number | null; // Participation ticket ID
@@ -96,5 +97,28 @@ export default class Participation {
         id
       );
     }
+  }
+
+  /**
+   * Delete an existing participation from database
+   *
+   * @param dbClient DB Connection Pool
+   * @param eventId event ID for the event associated with the participation
+   * @param participationId unique participation ID for the delete target
+   * @return {Promise<mariadb.UpsertResult>} db operation result
+   */
+  static async delete(
+    dbClient: mariadb.Pool,
+    eventId: number,
+    participationId: number
+  ): Promise<mariadb.UpsertResult> {
+    const queryResult = await dbClient.query(
+      'DELETE FROM participation WHERE id = ? AND event_id = ?',
+      [participationId, eventId]
+    );
+    if (queryResult.affectedRows === 0) {
+      throw new NotFoundError();
+    }
+    return queryResult;
   }
 }
