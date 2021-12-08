@@ -11,6 +11,9 @@ import NotFoundError from '../exceptions/NotFoundError';
 import Event from '../datatypes/event/Event';
 import Participation from '../datatypes/participate/Participation';
 import ParticipationForm from '../datatypes/participate/ParticipationForm';
+import ParticipationRetrieveResponse, {
+  ParticipationEntry,
+} from '../datatypes/participate/ParticipationRetrieveResponse';
 import {validateParticipationForm} from '../functions/inputValidator/participate/validateParticipationForm';
 import verifyAccessToken from '../functions/JWT/verifyAccessToken';
 
@@ -63,6 +66,50 @@ participateRouter.post('/', async (req, res, next) => {
 
     // Response
     res.status(200).send();
+  } catch (e) {
+    next(e);
+  }
+});
+
+// GET /event/{eventID}/participate
+participateRouter.get('', async (req, res, next) => {
+  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+  const eventId = parseInt((req.params as {eventId: string}).eventId);
+
+  try {
+    // Verify Admin Access Token
+    await verifyAccessToken(req, req.app.get('jwtAccessKey'));
+
+    // Check for numeric id, >= 1
+    if (isNaN(eventId) || eventId < 1) {
+      throw new NotFoundError();
+    }
+
+    // DB Operation
+    const participationList = await Participation.readByEventId(
+      dbClient,
+      eventId
+    );
+
+    // Response
+    if (participationList.length === 0) {
+      res.status(200).json({numParticipants: 0});
+    } else {
+      const replyObj: ParticipationRetrieveResponse = {
+        numParticipants: participationList.length,
+        participantsList: [],
+      };
+      participationList.forEach(p => {
+        (replyObj.participantsList as ParticipationEntry[]).push({
+          id: p.id as number,
+          participantName: p.participantName,
+          phoneNumber: p.phoneNumber ? p.phoneNumber : undefined,
+          email: p.email,
+          comment: p.comment ? p.comment : undefined,
+        });
+      });
+      res.status(200).json(replyObj);
+    }
   } catch (e) {
     next(e);
   }
