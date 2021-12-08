@@ -247,6 +247,38 @@ describe('POST /event/{eventID}/participate - Create new participate', () => {
     expect(queryResult[0].participant_name).not.toBe('홍길동');
   });
 
+  test('Fail - Phone number pattern not valid', async () => {
+    // Request - Having hyphen
+    let response = await request(testEnv.expressServer.app)
+      .post('/event/3/participate')
+      .send({
+        participantName: '홍길동',
+        phoneNumber: '010-1234-5678',
+        email: 'gildong@gmail.com',
+        comment: 'test',
+      });
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Bad Request');
+
+    // Request - Not a mobile number
+    response = await request(testEnv.expressServer.app)
+      .post('/event/3/participate')
+      .send({
+        participantName: '홍길동',
+        phoneNumber: '070-1234-5678',
+        email: 'gildong@gmail.com',
+        comment: 'test',
+      });
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe('Bad Request');
+
+    // DB Check
+    const queryResult = await testEnv.dbClient.query(
+      'SELECT * FROM participation WHERE event_id = 3'
+    );
+    expect(queryResult.length).toBe(2);
+  });
+
   test('Fail - Contains additional field', async () => {
     // Having age
     const response = await request(testEnv.expressServer.app)

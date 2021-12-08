@@ -12,7 +12,7 @@ export const validateParticipationForm = addFormats(new Ajv()).compile({
   properties: {
     participantName: {type: 'string'},
     email: {type: 'string', format: 'email'},
-    phoneNumber: {type: 'string'},
+    phoneNumber: {type: 'string', pattern: '^010[0-9]{8}$'},
     comment: {type: 'string'},
   },
   required: ['participantName', 'email'],
