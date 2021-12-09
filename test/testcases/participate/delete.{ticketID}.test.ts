@@ -52,7 +52,7 @@ describe('DELETE /event/{eventID}/participate/{ticketID} - Delete an existing ev
     );
     expect(queryResult.length).toBe(1);
     expect(queryResult[0].participant_name).toBe('김영희');
-    expect(queryResult[0].phone_number).toBe('010-1234-5678');
+    expect(queryResult[0].phone_number).toBe('01012345678');
     expect(queryResult[0].email).toBe('yhkim@gmail.com');
     expect(queryResult[0].comment).toBe('음 계정은 yhkim 입니다.');
   });

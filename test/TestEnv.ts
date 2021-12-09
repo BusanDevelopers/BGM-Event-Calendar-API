@@ -215,7 +215,7 @@ export default class TestEnv {
       3,
       new Date('2021-08-20'),
       '김영희',
-      '010-1234-5678',
+      '01012345678',
       'yhkim@gmail.com',
       '음 계정은 yhkim 입니다.',
     ]);
@@ -233,7 +233,7 @@ export default class TestEnv {
       4,
       new Date('2021-08-21'),
       '김말숙',
-      '010-4567-1234',
+      '01045671234',
       'mskim@gmail.com',
       null,
     ]);

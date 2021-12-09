@@ -7,6 +7,19 @@
 import * as mariadb from 'mariadb';
 import NotFoundError from '../../exceptions/NotFoundError';
 
+/**
+ * Interface to define participation entry in DB
+ */
+interface ParticipationDB {
+  id: number;
+  event_id: number;
+  date: string;
+  participant_name: string;
+  phone_number: string | null;
+  email: string;
+  comment: string | null;
+}
+
 export default class Participation {
   id: number | null; // Participation ticket ID
   eventId: number; // associated Event ID
@@ -55,6 +68,36 @@ export default class Participation {
       ),
       [eventId, date, participantName, phoneNumber, email, comment]
     );
+  }
+
+  /**
+   * Retrieve participation tickets associated with specific event
+   *
+   * @param dbClient DB Connection Pool (MariaDB)
+   * @param eventId unique id referring the event
+   * @return {Promise<Array<Participation>>} return array of Participations
+   */
+  static async readByEventId(
+    dbClient: mariadb.Pool,
+    eventId: number
+  ): Promise<Array<Participation>> {
+    // Query
+    const queryResult = await dbClient.query(
+      'SELECT * FROM participation WHERE event_id = ?',
+      [eventId]
+    );
+
+    return queryResult.map((qr: ParticipationDB) => {
+      return new Participation(
+        qr.event_id,
+        new Date(qr.date),
+        qr.participant_name,
+        qr.email,
+        qr.phone_number,
+        qr.comment,
+        qr.id
+      );
+    });
   }
 
   /**
