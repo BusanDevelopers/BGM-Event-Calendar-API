@@ -85,6 +85,9 @@ participateRouter.get('', async (req, res, next) => {
       throw new NotFoundError();
     }
 
+    // Check for event existence
+    await Event.read(dbClient, eventId);
+
     // DB Operation
     const participationList = await Participation.readByEventId(
       dbClient,
