@@ -131,6 +131,24 @@ export default class Event {
   }
 
   /**
+   * Check existence of event associated with the eventID
+   *
+   * @param dbClient DB Connection Pool
+   * @param eventId unique event ID associated with the Event
+   * @return {Promise<boolean>} true if exist, false otherwise
+   */
+  static async exist(
+    dbClient: mariadb.Pool,
+    eventId: number
+  ): Promise<boolean> {
+    const queryResult = await dbClient.query(
+      'SELECT EXISTS(SELECT * FROM event WHERE id = ?)',
+      [eventId]
+    );
+    return !!queryResult[0][Object.keys(queryResult[0])[0]];
+  }
+
+  /**
    * Update an existing event
    *
    * @param dbClient DB Connection Pool

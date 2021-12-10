@@ -9,6 +9,7 @@ import * as request from 'supertest';
 import * as jwt from 'jsonwebtoken';
 import TestEnv from '../../TestEnv';
 import AuthToken from '../../../src/datatypes/authentication/AuthToken';
+import deleteAdmin from '../../../src/functions/utils/deleteAdmin';
 
 describe('POST /auth/login - login', () => {
   let testEnv: TestEnv;
@@ -181,6 +182,27 @@ describe('POST /auth/login - login', () => {
       'testuser1'
     );
     expect(queryResult.length).toBe(0);
+  });
+
+  test('Fail - Removed User', async () => {
+    // Call deleteAdmin function
+    const result = await deleteAdmin('testuser1', testEnv.testConfig);
+    expect(result.affectedRows).toBe(1);
+
+    // login request
+    const loginCredentials = {
+      username: 'testuser1',
+      password: 'Password13!',
+    };
+    let response = await request(testEnv.expressServer.app)
+      .post('/auth/login')
+      .send(loginCredentials);
+    expect(response.status).toBe(401);
+    loginCredentials.username = 'testuser1_r';
+    response = await request(testEnv.expressServer.app)
+      .post('/auth/login')
+      .send(loginCredentials);
+    expect(response.status).toBe(401);
   });
 
   test('Fail - Not existing user', async () => {

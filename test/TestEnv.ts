@@ -90,9 +90,9 @@ export default class TestEnv {
         'CREATE TABLE admin_session (',
         'username VARCHAR(12) NOT NULL UNIQUE,',
         'FOREIGN KEY (username) REFERENCES admin(username) ON DELETE CASCADE ON UPDATE CASCADE,',
+        'INDEX index_username(username),',
         'token VARCHAR(255) NOT NULL PRIMARY KEY,',
-        'expires TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,',
-        'INDEX index_expires(expires)',
+        'expires TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP',
         ') CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;'
       )
     );
@@ -120,10 +120,13 @@ export default class TestEnv {
         'id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,',
         'event_id INT(11) NOT NULL,',
         'FOREIGN KEY (event_id) REFERENCES event(id) ON DELETE CASCADE ON UPDATE CASCADE,',
+        'INDEX index_event_id(event_id),',
         'date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,',
         'participant_name VARCHAR(255) NOT NULL,',
+        'INDEX index_participant_name(participant_name),',
         'phone_number VARCHAR(20) NULL DEFAULT NULL,',
         'email VARCHAR(255) NOT NULL,',
+        'INDEX index_email(email),',
         'comment TEXT NULL DEFAULT NULL',
         ') CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;'
       )
