@@ -193,10 +193,11 @@ export default class Participation {
   ): Promise<mariadb.UpsertResult> {
     const {participantName, email, phoneNumber, comment} = participation;
     const queryResult = await dbClient.query(
-      'UPDATE participation SET participation_name = ?, email = ?, phone_number = ?, comment = ? WHERE event_id = ? AND id = ?',
+      'UPDATE participation SET participant_name = ?, email = ?, phone_number = ?, comment = ? WHERE event_id = ? AND id = ?',
       [participantName, email, phoneNumber, comment, eventId, participationId]
     );
 
+    /* istanbul ignore next */
     if (queryResult.affectedRows === 0) {
       throw new NotFoundError();
     }

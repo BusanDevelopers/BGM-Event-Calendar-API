@@ -121,7 +121,7 @@ participateRouter.get('', async (req, res, next) => {
 });
 
 // PUT: /event/{eventID}/participate/{ticketID}
-participateRouter.delete('/:ticketId', async (req, res, next) => {
+participateRouter.put('/:ticketId', async (req, res, next) => {
   const dbClient: mariadb.Pool = req.app.locals.dbClient;
   const eventId = parseInt(
     (req.params as {eventId: string; ticketId: string}).eventId
