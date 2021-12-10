@@ -11,10 +11,12 @@ import NotFoundError from '../exceptions/NotFoundError';
 import Event from '../datatypes/event/Event';
 import Participation from '../datatypes/participate/Participation';
 import ParticipationForm from '../datatypes/participate/ParticipationForm';
+import ParticipationEditForm from '../datatypes/participate/ParticipationEditForm';
 import ParticipationRetrieveResponse, {
   ParticipationEntry,
 } from '../datatypes/participate/ParticipationRetrieveResponse';
 import {validateParticipationForm} from '../functions/inputValidator/participate/validateParticipationForm';
+import {validateParticipationEditForm} from '../functions/inputValidator/participate/validateParticipationEditForm';
 import verifyAccessToken from '../functions/JWT/verifyAccessToken';
 
 // Path: /event/{eventID}/participate
@@ -113,6 +115,61 @@ participateRouter.get('', async (req, res, next) => {
       });
       res.status(200).json(replyObj);
     }
+  } catch (e) {
+    next(e);
+  }
+});
+
+// PUT: /event/{eventID}/participate/{ticketID}
+participateRouter.delete('/:ticketId', async (req, res, next) => {
+  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+  const eventId = parseInt(
+    (req.params as {eventId: string; ticketId: string}).eventId
+  );
+  const ticketId = parseInt(req.params.ticketId);
+
+  try {
+    // Verify Admin Access Token
+    await verifyAccessToken(req, req.app.get('jwtAccessKey'));
+
+    // Check for numeric id, >= 1
+    if (isNaN(eventId) || eventId < 1) {
+      throw new NotFoundError();
+    }
+    if (isNaN(ticketId) || ticketId < 1) {
+      throw new NotFoundError();
+    }
+
+    // Verify User's request
+    const participationEditForm: ParticipationEditForm = req.body;
+    if (!validateParticipationEditForm(participationEditForm)) {
+      throw new BadRequestError();
+    }
+
+    // Create new participation object
+    const participation = await Participation.readByEventIdTicketId(
+      dbClient,
+      eventId,
+      ticketId
+    );
+    participation.participantName = participationEditForm.participantName
+      ? participationEditForm.participantName
+      : participation.participantName;
+    participation.email = participationEditForm.email
+      ? participationEditForm.email
+      : participation.email;
+    participation.phoneNumber = participationEditForm.phoneNumber
+      ? participationEditForm.phoneNumber
+      : participation.phoneNumber;
+    participation.comment = participationEditForm.comment
+      ? participationEditForm.comment
+      : participation.comment;
+
+    // DB Operation
+    await Participation.update(dbClient, eventId, ticketId, participation);
+
+    // Response
+    res.status(200).send();
   } catch (e) {
     next(e);
   }

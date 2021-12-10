@@ -101,6 +101,40 @@ export default class Participation {
   }
 
   /**
+   * Retrieve participation associated with the eventID and ticketID
+   *
+   * @param dbClient DB Connection Pool
+   * @param eventId event ID associated with the participation
+   * @param participationId unique participation ID
+   * @return {Promise<Participation>} return Participation
+   */
+  static async readByEventIdTicketId(
+    dbClient: mariadb.Pool,
+    eventId: number,
+    participationId: number
+  ): Promise<Participation> {
+    const queryResult = await dbClient.query(
+      'SELECT * FROM participation WHERE event_id = ? AND id = ?',
+      [eventId, participationId]
+    );
+    if (queryResult.length === 0) {
+      throw new NotFoundError();
+    }
+
+    const {id, event_id, date, participant_name} = queryResult[0];
+    const {phone_number, email, comment} = queryResult[0];
+    return new Participation(
+      event_id,
+      new Date(date),
+      participant_name,
+      email,
+      phone_number,
+      comment,
+      id
+    );
+  }
+
+  /**
    * Retrieve a participate table's entry using eventId, name, and email
    *
    * @param dbClient DB Connection Pool (MariaDB)
@@ -140,6 +174,33 @@ export default class Participation {
         id
       );
     }
+  }
+
+  /**
+   * Update an existing participation
+   *
+   * @param dbClient DB Connection Pool
+   * @param eventId event id associated with the participation
+   * @param participationId unique participation ID
+   * @param participation Participation Information
+   * @return {Promise<mariadb.UpsertResult>} DB Operation Result
+   */
+  static async update(
+    dbClient: mariadb.Pool,
+    eventId: number,
+    participationId: number,
+    participation: Participation
+  ): Promise<mariadb.UpsertResult> {
+    const {participantName, email, phoneNumber, comment} = participation;
+    const queryResult = await dbClient.query(
+      'UPDATE participation SET participation_name = ?, email = ?, phone_number = ?, comment = ? WHERE event_id = ? AND id = ?',
+      [participantName, email, phoneNumber, comment, eventId, participationId]
+    );
+
+    if (queryResult.affectedRows === 0) {
+      throw new NotFoundError();
+    }
+    return queryResult;
   }
 
   /**
