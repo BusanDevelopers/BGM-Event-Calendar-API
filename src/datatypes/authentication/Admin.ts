@@ -60,7 +60,7 @@ export default class Admin implements LoginCredentials {
       );
     } catch (e) {
       /* istanbul ignore else */
-      if (e.code === 'ER_DUP_ENTRY') {
+      if ((e as mariadb.SqlError).code === 'ER_DUP_ENTRY') {
         throw new HTTPError(400, 'Duplicated Username');
       } else {
         throw e;

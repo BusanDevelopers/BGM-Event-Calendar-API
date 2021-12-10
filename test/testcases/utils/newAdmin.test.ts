@@ -71,7 +71,7 @@ describe('POST /auth/login - login', () => {
       );
       fail();
     } catch (e) {
-      expect(e.message).toBe('Duplicated Username');
+      expect((e as Error).message).toBe('Duplicated Username');
     }
 
     // DB Check
@@ -103,7 +103,7 @@ describe('POST /auth/login - login', () => {
       );
       fail();
     } catch (e) {
-      expect(e.message).toBe('Invalid Username');
+      expect((e as Error).message).toBe('Invalid Username');
     }
 
     // DB Check
@@ -126,7 +126,7 @@ describe('POST /auth/login - login', () => {
       );
       fail();
     } catch (e) {
-      expect(e.message).toBe('Invalid Password');
+      expect((e as Error).message).toBe('Invalid Password');
     }
 
     // DB Check

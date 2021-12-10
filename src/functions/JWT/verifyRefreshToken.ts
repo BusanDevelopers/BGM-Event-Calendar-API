@@ -11,6 +11,7 @@ import AdminSession from '../../datatypes/authentication/AdminSession';
 import AuthToken from '../../datatypes/authentication/AuthToken';
 import JWTObject from '../../datatypes/authentication/JWTObject';
 import RefreshTokenVerifyResult from '../../datatypes/authentication/RefreshTokenVerifyResult';
+import HTTPError from '../../exceptions/HTTPError';
 import AuthenticationError from '../../exceptions/AuthenticationError';
 import createRefreshToken from './createRefreshToken';
 
@@ -56,7 +57,7 @@ export default async function verifyRefreshToken(
     }
   } catch (e) {
     /* istanbul ignore else */
-    if (e.message === 'Not Found') {
+    if ((e as HTTPError).message === 'Not Found') {
       throw new AuthenticationError();
     } else {
       throw e;

@@ -7,6 +7,7 @@
 import * as express from 'express';
 import * as mariadb from 'mariadb';
 import ServerConfig from '../ServerConfig';
+import HTTPError from '../exceptions/HTTPError';
 import AuthenticationError from '../exceptions/AuthenticationError';
 import BadRequestError from '../exceptions/BadRequestError';
 import Admin from '../datatypes/authentication/Admin';
@@ -50,7 +51,7 @@ authRouter.post('/login', async (req, res, next) => {
       admin = await Admin.read(dbClient, loginCredentials.username);
     } catch (e) {
       /* istanbul ignore else */
-      if (e.statusCode === 404) {
+      if ((e as HTTPError).statusCode === 404) {
         throw new AuthenticationError();
       } else {
         throw e;

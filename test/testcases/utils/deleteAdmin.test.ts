@@ -105,7 +105,7 @@ describe('POST /auth/login - login', () => {
       await deleteAdmin('notexist', testEnv.testConfig);
       fail();
     } catch (e) {
-      expect(e.message).toBe('Not Found');
+      expect((e as Error).message).toBe('Not Found');
     }
 
     // DB Check
