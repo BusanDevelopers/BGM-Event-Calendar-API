@@ -135,45 +135,31 @@ export default class Participation {
   }
 
   /**
-   * Retrieve a participate table's entry using eventId, name, and email
+   * Check existence of an entry in participate table
+   *   using eventId, name, and email
    *
    * @param dbClient DB Connection Pool (MariaDB)
    * @param eventId unique id referring the event
    * @param name participant's name
    * @param email participant's email
-   * @return {Promise<Participation | undefined>} either undefined
-   *   or found Participation
+   * @return {Promise<boolean>} true if exist, false if not exist
    */
-  static async readByEventIdNameEmail(
+  static async existByEventIdNameEmail(
     dbClient: mariadb.Pool,
     eventId: number,
     name: string,
     email: string
-  ): Promise<Participation | undefined> {
+  ): Promise<boolean> {
     // DB Query
     const queryResult = await dbClient.query(
       String.prototype.concat(
+        'SELECT EXISTS(',
         'SELECT * FROM participation ',
-        'WHERE event_id = ? AND participant_name = ? AND email = ?'
+        'WHERE event_id = ? AND participant_name = ? AND email = ?)'
       ),
       [eventId, name, email]
     );
-
-    if (queryResult.length === 0) {
-      return undefined;
-    } else {
-      const {id, event_id, date} = queryResult[0];
-      const {participant_name, phone_number, email, comment} = queryResult[0];
-      return new Participation(
-        event_id,
-        new Date(date),
-        participant_name,
-        email,
-        phone_number,
-        comment,
-        id
-      );
-    }
+    return !!queryResult[0][Object.keys(queryResult[0])[0]];
   }
 
   /**

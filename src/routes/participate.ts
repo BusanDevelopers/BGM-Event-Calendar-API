@@ -40,12 +40,14 @@ participateRouter.post('/', async (req, res, next) => {
     }
 
     // Check Event Existence
-    await Event.read(dbClient, eventId);
+    if (!(await Event.exist(dbClient, eventId))) {
+      throw new NotFoundError();
+    }
 
     // Check duplicated (having same name and email)
     const {participantName, email, phoneNumber, comment} = participationForm;
     if (
-      await Participation.readByEventIdNameEmail(
+      await Participation.existByEventIdNameEmail(
         dbClient,
         eventId,
         participantName,
@@ -88,7 +90,9 @@ participateRouter.get('', async (req, res, next) => {
     }
 
     // Check for event existence
-    await Event.read(dbClient, eventId);
+    if (!(await Event.exist(dbClient, eventId))) {
+      throw new NotFoundError();
+    }
 
     // DB Operation
     const participationList = await Participation.readByEventId(
