@@ -8,6 +8,7 @@ import * as mariadb from 'mariadb';
 import LoginCredentials from '../authentication/LoginCredentials';
 import NotFoundError from '../../exceptions/NotFoundError';
 import HTTPError from '../../exceptions/HTTPError';
+import AdminSession from './AdminSession';
 
 /**
  * Class for Admin
@@ -114,6 +115,8 @@ export default class Admin implements LoginCredentials {
 
   /**
    * Delete an existing entry in admin table
+   *   - Rather than really delete admin account from table,
+   *       mark account as removed with '_r' suffix on username
    *
    * @param dbClient DB Connection Pool
    * @param username username associated with the Admin
@@ -123,13 +126,18 @@ export default class Admin implements LoginCredentials {
     dbClient: mariadb.Pool,
     username: string
   ): Promise<mariadb.UpsertResult> {
+    // Clear Session
+    await AdminSession.deleteByUsername(dbClient, username);
+
+    // Mark as removed
     const queryResult = await dbClient.query(
-      'DELETE FROM admin WHERE username = ?',
-      username
+      'UPDATE admin SET username = ? WHERE username = ?',
+      [`${username}_r`, username]
     );
     if (queryResult.affectedRows === 0) {
       throw new NotFoundError();
     }
+
     return queryResult;
   }
 }

@@ -7,7 +7,6 @@
 // eslint-disable-next-line node/no-unpublished-import
 import * as request from 'supertest';
 import TestEnv from '../../TestEnv';
-import TestConfig from '../../TestConfig';
 import deleteAdmin from '../../../src/functions/utils/deleteAdmin';
 
 describe('POST /auth/login - login', () => {
@@ -36,17 +35,14 @@ describe('POST /auth/login - login', () => {
       expect(result.affectedRows).toBe(1);
 
       // DB Check
-      const queryResult = await testEnv.dbClient.query('SELECT * FROM admin');
-      expect(queryResult.length).toBe(1);
-      expect(queryResult[0].username).toBe('testuser2');
-      expect(queryResult[0].name).toBe('김철수');
-      expect(queryResult[0].password).toBe(
-        TestConfig.hash(
-          'testuser2',
-          new Date(queryResult[0].membersince).toISOString(),
-          'Password12!'
-        )
+      let queryResult = await testEnv.dbClient.query(
+        "SELECT * FROM admin WHERE username = 'testuser1'"
       );
+      expect(queryResult.length).toBe(0);
+      queryResult = await testEnv.dbClient.query(
+        "SELECT * FROM admin WHERE username = 'testuser1_r'"
+      );
+      expect(queryResult.length).toBe(1);
     } catch (e) {
       fail();
     }
@@ -66,37 +62,30 @@ describe('POST /auth/login - login', () => {
       .send(loginCredentials);
     expect(response.status).toBe(200);
 
-    try {
-      // Call deleteAdmin function
-      const result = await deleteAdmin('testuser1', testEnv.testConfig);
-      expect(result.affectedRows).toBe(1);
+    // Call deleteAdmin function
+    const result = await deleteAdmin('testuser1', testEnv.testConfig);
+    expect(result.affectedRows).toBe(1);
 
-      // DB Check - admin
-      let queryResult = await testEnv.dbClient.query('SELECT * FROM admin');
-      expect(queryResult.length).toBe(1);
-      expect(queryResult[0].username).toBe('testuser2');
-      expect(queryResult[0].name).toBe('김철수');
-      expect(queryResult[0].password).toBe(
-        TestConfig.hash(
-          'testuser2',
-          new Date(queryResult[0].membersince).toISOString(),
-          'Password12!'
-        )
-      );
+    // DB Check - admin
+    let queryResult = await testEnv.dbClient.query(
+      "SELECT * FROM admin WHERE username = 'testuser1'"
+    );
+    expect(queryResult.length).toBe(0);
+    queryResult = await testEnv.dbClient.query(
+      "SELECT * FROM admin WHERE username = 'testuser1_r'"
+    );
+    expect(queryResult.length).toBe(1);
 
-      // DB Check - admin_session
-      queryResult = await testEnv.dbClient.query(
-        'SELECT * FROM admin_session WHERE username = ?',
-        'testuser1'
-      );
-      expect(queryResult.length).toBe(0);
+    // DB Check - admin_session
+    queryResult = await testEnv.dbClient.query(
+      'SELECT * FROM admin_session WHERE username = ?',
+      'testuser1'
+    );
+    expect(queryResult.length).toBe(0);
 
-      queryResult = await testEnv.dbClient.query('SELECT * FROM admin_session');
-      expect(queryResult.length).toBe(1);
-      expect(queryResult[0].username).toBe('testuser2');
-    } catch (e) {
-      fail();
-    }
+    queryResult = await testEnv.dbClient.query('SELECT * FROM admin_session');
+    expect(queryResult.length).toBe(1);
+    expect(queryResult[0].username).toBe('testuser2');
   });
 
   test('Fail - No matching username', async () => {

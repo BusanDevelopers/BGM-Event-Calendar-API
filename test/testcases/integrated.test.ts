@@ -61,6 +61,10 @@ describe('Integrated DB Test', () => {
     queryResult = await testEnv.dbClient.query(
       "SELECT * FROM event WHERE editor = 'testuser1'"
     );
+    expect(queryResult.length).toBe(0);
+    queryResult = await testEnv.dbClient.query(
+      "SELECT * FROM event WHERE editor = 'testuser1_r'"
+    );
     expect(queryResult.length).toBe(2);
     queryResult.forEach(
       (qr: {
