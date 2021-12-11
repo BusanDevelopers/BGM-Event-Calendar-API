@@ -27,66 +27,111 @@
 타입스크립트 개발 환경을 쉽게 구축하기 위해 [gts](https://github.com/google/gts) 라이브러리가 사용되었습니다..
 `gts`에서 정의된 코드 스타일 규칙을 바탕으로, 더 엄격한 스타일 준수를 위해 [`.eslintrc.json` 파일](https://github.com/BusanDevelopers/BGM-Event-Calendar-API/blob/main/.eslintrc.json)에 정의한 대로 코드 스타일 규칙을 수정하였습니다.
 
-데이터베이스는 MySQL과 호환되는 [MariaDB](https://mariadb.org/)를 사용합니다.
+데이터베이스는 [Azure Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/introduction) (Core(SQL) API)를 사용합니다.  
+NoSQL 데이터베이스이므로 별도의 스키마는 없으나, 아래의 Data Diagram에 맞추어 자료가 저장될 수 있도록 합니다.
 
 Data Diagram
-![ERD.svg](img/ERD.svg)
+![ERD.png](img/ERD.png)
 
 <details>
-  <summary>테이블을 만들기 위해 사용된 SQL Query를 보려면 클릭해 주십시오.</summary>
+  <summary>각 컬랙션을 만들때 사용된 설정값과 인덱스 설정을 확인하려면 클릭해 주십시오.</summary>
  
 
-  `admin` 테이블을 만들기 위한 SQL 쿼리
-  ``` SQL
-  CREATE TABLE admin (
-    username VARCHAR(12) NOT NULL PRIMARY KEY,
-    password CHAR(88) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    membersince TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-  ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-  ```
+[comment]: <> (  `admin` 테이블을 만들기 위한 SQL 쿼리)
 
-  `admin_session` 테이블을 만들기 위한 SQL 쿼리
-  ``` SQL
-  CREATE TABLE admin_session (
-    username VARCHAR(12) NOT NULL UNIQUE,
-    FOREIGN KEY (username) REFERENCES admin(username) ON DELETE CASCADE ON UPDATE CASCADE,
-    INDEX index_username(username),
-    token VARCHAR(255) NOT NULL PRIMARY KEY,
-    expires TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-  ```
+[comment]: <> (  ``` SQL)
 
-  `event` 테이블을 만들기 위한 SQL 쿼리
-  ``` SQL
-  CREATE TABLE event (
-    id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX index_date(date),
-    name VARCHAR(255) NOT NULL,
-    detail MEDIUMTEXT NULL DEFAULT NULL,
-    category VARCHAR(255) NULL DEFAULT NULL,
-    editor VARCHAR(12) NOT NULL,
-    FOREIGN KEY (editor) REFERENCES admin(username) ON DELETE CASCADE ON UPDATE CASCADE
-  ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-  ```
+[comment]: <> (  CREATE TABLE admin &#40;)
 
-  `participation` 테이블을 만들기 위한 SQL 쿼리
-  ``` SQL
-  CREATE TABLE participation (
-    id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    event_id INT(11) NOT NULL,
-    FOREIGN KEY (event_id) REFERENCES event(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    INDEX index_event_id(event_id),
-    date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    participant_name VARCHAR(255) NOT NULL,
-    INDEX index_participant_name(participant_name),
-    phone_number VARCHAR(20) NULL DEFAULT NULL,
-    email VARCHAR(255) NOT NULL,
-    INDEX index_email(email),
-    comment TEXT NULL DEFAULT NULL
-  ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-  ```
+[comment]: <> (    username VARCHAR&#40;12&#41; NOT NULL PRIMARY KEY,)
+
+[comment]: <> (    password CHAR&#40;88&#41; NOT NULL,)
+
+[comment]: <> (    name VARCHAR&#40;255&#41; NOT NULL,)
+
+[comment]: <> (    membersince TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)
+
+[comment]: <> (  &#41; CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;)
+
+[comment]: <> (  ```)
+
+[comment]: <> (  `admin_session` 테이블을 만들기 위한 SQL 쿼리)
+
+[comment]: <> (  ``` SQL)
+
+[comment]: <> (  CREATE TABLE admin_session &#40;)
+
+[comment]: <> (    username VARCHAR&#40;12&#41; NOT NULL UNIQUE,)
+
+[comment]: <> (    FOREIGN KEY &#40;username&#41; REFERENCES admin&#40;username&#41; ON DELETE CASCADE ON UPDATE CASCADE,)
+
+[comment]: <> (    INDEX index_username&#40;username&#41;,)
+
+[comment]: <> (    token VARCHAR&#40;255&#41; NOT NULL PRIMARY KEY,)
+
+[comment]: <> (    expires TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,)
+
+[comment]: <> (  &#41; CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;)
+
+[comment]: <> (  ```)
+
+[comment]: <> (  `event` 테이블을 만들기 위한 SQL 쿼리)
+
+[comment]: <> (  ``` SQL)
+
+[comment]: <> (  CREATE TABLE event &#40;)
+
+[comment]: <> (    id INT&#40;11&#41; NOT NULL AUTO_INCREMENT PRIMARY KEY,)
+
+[comment]: <> (    date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,)
+
+[comment]: <> (    INDEX index_date&#40;date&#41;,)
+
+[comment]: <> (    name VARCHAR&#40;255&#41; NOT NULL,)
+
+[comment]: <> (    detail MEDIUMTEXT NULL DEFAULT NULL,)
+
+[comment]: <> (    category VARCHAR&#40;255&#41; NULL DEFAULT NULL,)
+
+[comment]: <> (    editor VARCHAR&#40;12&#41; NOT NULL,)
+
+[comment]: <> (    FOREIGN KEY &#40;editor&#41; REFERENCES admin&#40;username&#41; ON DELETE CASCADE ON UPDATE CASCADE)
+
+[comment]: <> (  &#41; CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;)
+
+[comment]: <> (  ```)
+
+[comment]: <> (  `participation` 테이블을 만들기 위한 SQL 쿼리)
+
+[comment]: <> (  ``` SQL)
+
+[comment]: <> (  CREATE TABLE participation &#40;)
+
+[comment]: <> (    id INT&#40;11&#41; NOT NULL AUTO_INCREMENT PRIMARY KEY,)
+
+[comment]: <> (    event_id INT&#40;11&#41; NOT NULL,)
+
+[comment]: <> (    FOREIGN KEY &#40;event_id&#41; REFERENCES event&#40;id&#41; ON DELETE CASCADE ON UPDATE CASCADE,)
+
+[comment]: <> (    INDEX index_event_id&#40;event_id&#41;,)
+
+[comment]: <> (    date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,)
+
+[comment]: <> (    participant_name VARCHAR&#40;255&#41; NOT NULL,)
+
+[comment]: <> (    INDEX index_participant_name&#40;participant_name&#41;,)
+
+[comment]: <> (    phone_number VARCHAR&#40;20&#41; NULL DEFAULT NULL,)
+
+[comment]: <> (    email VARCHAR&#40;255&#41; NOT NULL,)
+
+[comment]: <> (    INDEX index_email&#40;email&#41;,)
+
+[comment]: <> (    comment TEXT NULL DEFAULT NULL)
+
+[comment]: <> (  &#41; CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;)
+
+[comment]: <> (  ```)
 </details>
 
 [Express](https://expressjs.com/)는 node.js를 위한 웹 프레임워크입니다.
