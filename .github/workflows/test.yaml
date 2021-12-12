@@ -2,13 +2,13 @@
 
 name: GitHub Action Test
 
-# Controls when the action will run. 
+# Controls when the action will run.
 on:
   # Triggers the workflow on push or pull request events but only for the main branch
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -25,46 +25,47 @@ jobs:
           - 16
         architecture:
           - x64
-    
+
     # Service containers to run with test
     services:
       # Label used to access the service container
-      redis:
+      cosmosdb-emulator:
         # Docker Hub Image (Using Redis 5.0.x)
-        image: redis:5.0
+        image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator
         ports:
-          # Maps port 6379 on service container to the host
-          - 6379:6379
-    
+          # Maps port 8081, 10251, 10252, 10253, 10254 on service container to the host
+          - 8081:8081
+          - 10251:10251
+          - 10252:10252
+          - 10253:10253
+          - 10254:10254
+        options: >-
+          -m 3g
+          --cpus 2.0
+
     name: Node ${{ matrix.node_version }} - ${{ matrix.architecture }} on ${{ matrix.os }}
-    
+
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Check out repository code
         uses: actions/checkout@v2
 
-      # Setup MySQL (MariaDB Not supported for GitHub Action)
-      - name: Setup MySQL
-        run: |
-          sudo /etc/init.d/mysql start
-          mysql -uroot -proot -e "CREATE USER 'apptest'@'localhost'; GRANT ALL PRIVILEGES ON *.* to 'apptest'@'localhost';"
-      
       # Install Node.JS
       - name: Setup Node.js
         uses: actions/setup-node@v2
         with:
           node-version: ${{ matrix.node_version }}
           architecture: ${{ matrix.architecture }}
-      
+
       # Install Dependencies
       - name: Install Dependencies
         run: npm install
-      
+
       # Create ServerConfig.ts
       - run: |
           cp src/ServerConfigExample.ts src/ServerConfig.ts
-      
+
       # Run Test
       - name: Run Test
         run: npm test
