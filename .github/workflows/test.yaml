@@ -46,8 +46,9 @@ jobs:
           --health-interval 30s
           --health-timeout 10s
           --health-retries 10
+          --health-start-period 120s
 
-    name: Node ${{ matrix.node_version }} - ${{ matrix.architecture }} on ${{ matrix.container }}
+    name: Node ${{ matrix.node_version }} - ${{ matrix.architecture }} on ${{ matrix.os }}
 
     env:
       DB_HOST: 127.0.0.1
