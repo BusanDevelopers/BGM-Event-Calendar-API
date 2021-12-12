@@ -33,7 +33,7 @@ jobs:
     container: ${{ matrix.container }}
     services:
       # Label used to access the service container
-      cosmosdb-emulator:
+      cosmosdb:
         # Docker Hub Image (Using Redis 5.0.x)
         image: mcr.microsoft.com/cosmosdb/linux/azure-cosmos-emulator
         ports:
@@ -50,7 +50,7 @@ jobs:
     name: Node ${{ matrix.node_version }} - ${{ matrix.architecture }} on ${{ matrix.container }}
 
     env:
-      DB_HOST: cosmosdb-emulator
+      DB_HOST: cosmosdb
       DB_PORT: 8081
 
     # Steps represent a sequence of tasks that will be executed as part of the job
