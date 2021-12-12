@@ -4,140 +4,240 @@
  * @author Hyecheol (Jerry) Jang <hyecheol123@gmail.com>
  */
 
-import * as mariadb from 'mariadb';
+import * as Cosmos from '@azure/cosmos';
 import LoginCredentials from '../authentication/LoginCredentials';
 import NotFoundError from '../../exceptions/NotFoundError';
 import HTTPError from '../../exceptions/HTTPError';
-import AdminSession from './AdminSession';
+
+// DB Container id
+const ADMIN = 'admin';
+
+/**
+ * Interface for AdminSessionDB
+ */
+interface AdminSessionDB {
+  token: string;
+  expiresAt: Date | string; // Saved as ISOString
+}
+
+/**
+ * Define interface for AdminSession
+ */
+export interface AdminSession extends AdminSessionDB {
+  id: string;
+}
 
 /**
  * Class for Admin
  */
 export default class Admin implements LoginCredentials {
-  username: string;
+  id: string;
   password: string; // Hashed Password
   name: string;
-  memberSince: Date;
+  memberSince: Date | string; // Saved as ISOString
+  session?: undefined | AdminSessionDB;
 
   /**
    * Constructor for Admin Object
    *
-   * @param username unique username of the admin (Maximum 12 character)
+   * @param id unique username of the admin (Maximum 12 character)
    * @param password admin's password
    * @param name name of admin
    * @param memberSince When user signed up
    */
-  constructor(
-    username: string,
-    password: string,
-    name: string,
-    memberSince: Date
-  ) {
-    this.username = username;
+  constructor(id: string, password: string, name: string, memberSince: Date) {
+    this.id = id;
     this.password = password;
     this.name = name;
     this.memberSince = memberSince;
   }
 
   /**
-   * Create new entry in admin table
+   * Create new entry in admin container
    *
-   * @param dbClient DB Connection Pool (MariaDB)
+   * @param dbClient DB Client (Cosmos Database)
    * @param admin Admin Information
-   * @return {Promise<mariadb.UpsertResult>} db operation result
+   * @return {Promise<Cosmos.ItemResponse<Admin>>} db operation result
    */
   static async create(
-    dbClient: mariadb.Pool,
+    dbClient: Cosmos.Database,
     admin: Admin
-  ): Promise<mariadb.UpsertResult> {
+  ): Promise<Cosmos.ItemResponse<Admin>> {
+    // Generate date string
+    admin.memberSince = (admin.memberSince as Date).toISOString();
+
+    let dbOps;
     try {
-      return await dbClient.query(
-        String.prototype.concat(
-          'INSERT INTO admin ',
-          '(username, password, name, membersince) ',
-          'VALUES (?, ?, ?, ?)'
-        ),
-        [admin.username, admin.password, admin.name, admin.memberSince]
-      );
+      dbOps = await dbClient.container(ADMIN).items.create<Admin>(admin);
     } catch (e) {
+      // Check for duplicated username
       /* istanbul ignore else */
-      if ((e as mariadb.SqlError).code === 'ER_DUP_ENTRY') {
+      if ((e as Cosmos.ErrorResponse).code === 409) {
         throw new HTTPError(400, 'Duplicated Username');
       } else {
         throw e;
       }
     }
+
+    return dbOps;
   }
 
   /**
-   * Retrieve an Admin entry from DB
+   * Retrieve an Admin document from DB
    *
-   * @param dbClient DB Connection Pool
-   * @param username username associated with the Admin
+   * @param dbClient DB Client (Cosmos Database)
+   * @param id username associated with the Admin
    * @return {Promise<Admin>} return information of Admin associated with the username
    */
-  static async read(dbClient: mariadb.Pool, username: string): Promise<Admin> {
-    const queryResult = await dbClient.query(
-      'SELECT * FROM admin WHERE username = ?',
-      username
-    );
-    if (queryResult.length !== 1) {
+  static async read(dbClient: Cosmos.Database, id: string): Promise<Admin> {
+    // Query
+    const queryResult = await dbClient.container(ADMIN).item(id).read<Admin>();
+
+    // Error
+    if (queryResult.statusCode === 404) {
       throw new NotFoundError();
     }
+    /* istanbul ignore next */
+    if (queryResult.statusCode >= 400) {
+      throw new Error(JSON.stringify(queryResult));
+    }
 
-    return new Admin(
-      queryResult[0].username,
-      queryResult[0].password,
-      queryResult[0].name,
-      new Date(queryResult[0].membersince)
-    );
+    const admin = queryResult.resource as Admin;
+    admin.memberSince = new Date(admin.memberSince);
+    return admin;
   }
 
   /**
-   * Update password of existing entry in admin table
+   * Retrieve an AdminSession from DB
    *
-   * @param dbClient DB Connection Pool
-   * @param username username associated with the Admin
+   * @param dbClient DB Client (Cosmos Database)
+   * @param refreshToken refreshToken which indicates the session
+   * @return {Promise<AdminSession>} return information of AdminSession associated with the refreshToken
+   */
+  static async readSession(
+    dbClient: Cosmos.Database,
+    refreshToken: string
+  ): Promise<AdminSession> {
+    // Query
+    const dbOps = await dbClient
+      .container(ADMIN)
+      .items.query<Admin>({
+        query: String.prototype.concat(
+          'SELECT a.id, a.session.token, a.session.expiresAt ',
+          'FROM admin AS a WHERE a.session.token = @token'
+        ),
+        parameters: [{name: '@token', value: refreshToken}],
+      })
+      .fetchAll();
+
+    // Check existence
+    if (dbOps.resources.length !== 1) {
+      throw new NotFoundError();
+    }
+    const session = dbOps.resources[0] as unknown as AdminSession;
+    session.expiresAt = new Date(session.expiresAt);
+    return session;
+  }
+
+  /**
+   * Update password of existing document in admin container
+   *
+   * @param dbClient DB Client (Cosmos Database)
+   * @param id username associated with the Admin
    * @param password new password (Hashed)
-   * @return {Promise<mariadb.UpsertResult>} db operation result
+   * @return {Promise<Cosmos.ItemResponse<Admin>>} db operation result
    */
   static async updatePassword(
-    dbClient: mariadb.Pool,
-    username: string,
+    dbClient: Cosmos.Database,
+    id: string,
     password: string
-  ): Promise<mariadb.UpsertResult> {
-    const args = [password, username];
-    return dbClient.query(
-      'UPDATE admin SET password = ? WHERE username = ?',
-      args
-    );
+  ): Promise<Cosmos.ItemResponse<Admin>> {
+    // Get user document
+    const admin = await Admin.read(dbClient, id);
+    admin.memberSince = (admin.memberSince as Date).toISOString();
+
+    // Update password
+    admin.password = password;
+    return await dbClient.container(ADMIN).item(id).replace<Admin>(admin);
   }
 
   /**
-   * Delete an existing entry in admin table
-   *   - Rather than really delete admin account from table,
-   *       mark account as removed with '_r' suffix on username
+   * Update session of existing document in admin container
    *
-   * @param dbClient DB Connection Pool
-   * @param username username associated with the Admin
-   * @return {Promise<mariadb.UpsertResult>} db operation result
+   * @param dbClient DB Client (Cosmos Database)
+   * @param id username associated with the Admin
+   * @param adminSessionDB admin session information
+   * @return {Promise<Cosmos.ItemResponse<Admin>>} db operation result
+   */
+  static async updateSession(
+    dbClient: Cosmos.Database,
+    id: string,
+    adminSessionDB: AdminSessionDB | undefined
+  ): Promise<Cosmos.ItemResponse<Admin>> {
+    // Get user document
+    const admin = await Admin.read(dbClient, id);
+    admin.memberSince = (admin.memberSince as Date).toISOString();
+
+    // Update Session
+    admin.session = adminSessionDB
+      ? {
+          token: adminSessionDB.token,
+          expiresAt: (adminSessionDB.expiresAt as Date).toISOString(),
+        }
+      : undefined;
+    return await dbClient.container(ADMIN).item(id).replace<Admin>(admin);
+  }
+
+  /**
+   * Remove session from admin document by token
+   *
+   * @param dbClient DB Client (Cosmos Database)
+   * @param refreshToken token indicating a session
+   * @return {Promise<Cosmos.ItemResponse<Admin>>} db operation result
+   */
+  static async updateRemoveSessionByToken(
+    dbClient: Cosmos.Database,
+    refreshToken: string
+  ): Promise<Cosmos.ItemResponse<Admin> | void> {
+    // Retrieve admin document
+    const dbOps = await dbClient
+      .container(ADMIN)
+      .items.query<Admin>({
+        query: 'SELECT * FROM admin as a WHERE a.session.token = @token',
+        parameters: [{name: '@token', value: refreshToken}],
+      })
+      .fetchAll();
+    const admin = dbOps.resources[0];
+
+    // Update admin document
+    admin.session = undefined;
+    return await dbClient.container(ADMIN).item(admin.id).replace<Admin>(admin);
+  }
+
+  /**
+   * Delete an existing document in admin container
+   *
+   * @param dbClient DB Client (Cosmos Database)
+   * @param id username associated with the Admin
+   * @return {Promise<Cosmos.ItemResponse<Admin>>} db operation result
    */
   static async delete(
-    dbClient: mariadb.Pool,
-    username: string
-  ): Promise<mariadb.UpsertResult> {
-    // Clear Session
-    await AdminSession.deleteByUsername(dbClient, username);
-
-    // Mark as removed
-    const queryResult = await dbClient.query(
-      'UPDATE admin SET username = ? WHERE username = ?',
-      [`${username}_r`, username]
-    );
-    if (queryResult.affectedRows === 0) {
-      throw new NotFoundError();
+    dbClient: Cosmos.Database,
+    id: string
+  ): Promise<Cosmos.ItemResponse<Admin>> {
+    let dbOps;
+    try {
+      // Delete Query
+      dbOps = await dbClient.container(ADMIN).item(id).delete<Admin>();
+    } catch (e) {
+      /* istanbul ignore else */
+      if ((e as Cosmos.ErrorResponse).code === 404) {
+        throw new NotFoundError();
+      } else {
+        throw e;
+      }
     }
 
-    return queryResult;
+    return dbOps;
   }
 }

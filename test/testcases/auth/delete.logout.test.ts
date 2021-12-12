@@ -7,13 +7,19 @@
 // eslint-disable-next-line node/no-unpublished-import
 import * as request from 'supertest';
 import * as jwt from 'jsonwebtoken';
+import * as Cosmos from '@azure/cosmos';
 // eslint-disable-next-line node/no-unpublished-import
 import MockDate from 'mockdate';
 import TestEnv from '../../TestEnv';
+import ExpressServer from '../../../src/ExpressServer';
 import AuthToken from '../../../src/datatypes/authentication/AuthToken';
+import invalidateToken from '../../utils/invalidateToken';
 
 describe('DELETE /auth/logout - logout from current session', () => {
   let testEnv: TestEnv;
+
+  // DB Container ID
+  const ADMIN = 'admin';
 
   beforeAll(() => {
     jest.setTimeout(120000);
@@ -26,31 +32,29 @@ describe('DELETE /auth/logout - logout from current session', () => {
   });
 
   afterEach(async () => {
+    MockDate.reset();
     await testEnv.stop();
   });
 
   test('Success Logout', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
-    MockDate.set(currentDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
     const refreshToken = response.header['set-cookie'][1]
       .split('; ')[0]
       .split('=')[1];
     // Dummy Login (Other user)
-    currentDate.setSeconds(currentDate.getSeconds() + 1);
-    MockDate.set(currentDate);
     response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser2', password: 'Password12!'});
+      .send({id: 'testuser2', password: 'Password12!'});
     expect(response.status).toBe(200);
 
     // Logout request
-    currentDate.setSeconds(currentDate.getSeconds() + 1);
-    MockDate.set(currentDate);
     response = await request(testEnv.expressServer.app)
       .delete('/auth/logout')
       .set('Cookie', [`X-REFRESH-TOKEN=${refreshToken}`]);
@@ -65,37 +69,43 @@ describe('DELETE /auth/logout - logout from current session', () => {
     expect(cookie[1]).toBe('');
 
     // DB Check
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser1'
+    let dbOps = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query('SELECT * FROM admin AS a WHERE a.id = "testuser1"')
+      .fetchAll();
+    expect(dbOps.resources.length).toBe(1);
+    expect(dbOps.resources[0].session).toBeUndefined();
+    dbOps = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query('SELECT * FROM admin AS a WHERE a.id = "testuser2"')
+      .fetchAll();
+    expect(dbOps.resources.length).toBe(1);
+    expect(new Date(dbOps.resources[0].session.expiresAt) > new Date()).toBe(
+      true
     );
-    expect(queryResult.length).toBe(0);
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser2'
-    );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].expires) > new Date()).toBe(true);
     const expireDate = new Date();
     expireDate.setMinutes(expireDate.getMinutes() + 121);
-    expect(new Date(queryResult[0].expires) < expireDate).toBe(true);
+    expect(new Date(dbOps.resources[0].session.expiresAt) < expireDate).toBe(
+      true
+    );
   });
 
   test('Success logout - about to expire refreshToken', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
-    MockDate.set(currentDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
     const refreshToken = response.header['set-cookie'][1]
       .split('; ')[0]
       .split('=')[1];
 
     // Logout request
-    currentDate.setMinutes(currentDate.getMinutes() + 101); // about to expire
-    MockDate.set(currentDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 101);
+    expect(affectedSessions).toBe(1);
     response = await request(testEnv.expressServer.app)
       .delete('/auth/logout')
       .set('Cookie', [`X-REFRESH-TOKEN=${refreshToken}`]);
@@ -110,28 +120,28 @@ describe('DELETE /auth/logout - logout from current session', () => {
     expect(cookie[1]).toBe('');
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser1'
-    );
-    expect(queryResult.length).toBe(0);
+    const dbOps = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query('SELECT * FROM admin AS a WHERE a.id = "testuser1"')
+      .fetchAll();
+    expect(dbOps.resources.length).toBe(1);
+    expect(dbOps.resources[0].session).toBeUndefined();
   });
 
   test('Fail - Use accessToken to logout', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
-    MockDate.set(currentDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
     const accessToken = response.header['set-cookie'][0]
       .split('; ')[0]
       .split('=')[1];
 
     // Logout request
-    currentDate.setMinutes(currentDate.getMinutes() + 1);
-    MockDate.set(currentDate);
     response = await request(testEnv.expressServer.app)
       .delete('/auth/logout')
       .set('Cookie', [`X-REFRESH-TOKEN=${accessToken}`]);
@@ -141,23 +151,29 @@ describe('DELETE /auth/logout - logout from current session', () => {
     expect(response.header['set-cookie']).toBeUndefined();
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser1'
+    const dbOps = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query('SELECT * FROM admin AS a WHERE a.id = "testuser1"')
+      .fetchAll();
+    expect(dbOps.resources.length).toBe(1);
+    expect(new Date(dbOps.resources[0].session.expiresAt) > new Date()).toBe(
+      true
     );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].expires) > new Date()).toBe(true);
     const expireDate = new Date();
     expireDate.setMinutes(expireDate.getMinutes() + 121);
-    expect(new Date(queryResult[0].expires) < expireDate).toBe(true);
+    expect(new Date(dbOps.resources[0].session.expiresAt) < expireDate).toBe(
+      true
+    );
   });
 
   test('Fail - Use unregistered refreshToken', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Create RefreshToken
-    MockDate.set(currentDate);
+    const currentDate = new Date();
     const tokenContents: AuthToken = {
-      username: 'testuser1',
+      id: 'testuser1',
       type: 'refresh',
     };
     const jwtOption: jwt.SignOptions = {
@@ -175,12 +191,10 @@ describe('DELETE /auth/logout - logout from current session', () => {
     MockDate.set(currentDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
 
     // Logout request
-    currentDate.setMinutes(currentDate.getMinutes() + 1);
-    MockDate.set(currentDate);
     response = await request(testEnv.expressServer.app)
       .delete('/auth/logout')
       .set('Cookie', [`X-REFRESH-TOKEN=${refreshToken}`]);
@@ -190,31 +204,37 @@ describe('DELETE /auth/logout - logout from current session', () => {
     expect(response.header['set-cookie']).toBeUndefined();
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser1'
+    const dbOps = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query('SELECT * FROM admin AS a WHERE a.id = "testuser1"')
+      .fetchAll();
+    expect(dbOps.resources.length).toBe(1);
+    expect(new Date(dbOps.resources[0].session.expiresAt) > new Date()).toBe(
+      true
     );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].expires) > new Date()).toBe(true);
     const expireDate = new Date();
     expireDate.setMinutes(expireDate.getMinutes() + 121);
-    expect(new Date(queryResult[0].expires) < expireDate).toBe(true);
+    expect(new Date(dbOps.resources[0].session.expiresAt) < expireDate).toBe(
+      true
+    );
   });
 
   test('Fail - Use expired refreshToken', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login request
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
     const refreshToken = response.header['set-cookie'][1]
       .split('; ')[0]
       .split('=')[1];
 
     // Logout request
-    currentDate.setMinutes(currentDate.getMinutes() + 121); // expired
-    MockDate.set(currentDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 121);
+    expect(affectedSessions).toBe(1);
     response = await request(testEnv.expressServer.app)
       .delete('/auth/logout')
       .set('Cookie', [`X-REFRESH-TOKEN=${refreshToken}`]);
@@ -227,11 +247,12 @@ describe('DELETE /auth/logout - logout from current session', () => {
   });
 
   test('Fail - Use refreshToken generated with wrong secret key', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Create RefreshToken
-    MockDate.set(currentDate);
     const tokenContents: AuthToken = {
-      username: 'testuser1',
+      id: 'testuser1',
       type: 'refresh',
     };
     const jwtOption: jwt.SignOptions = {
@@ -243,12 +264,10 @@ describe('DELETE /auth/logout - logout from current session', () => {
     // Login request
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
 
     // Logout request
-    currentDate.setMinutes(currentDate.getMinutes() + 1);
-    MockDate.set(currentDate);
     response = await request(testEnv.expressServer.app)
       .delete('/auth/logout')
       .set('Cookie', [`X-REFRESH-TOKEN=${refreshToken}`]);
@@ -258,23 +277,28 @@ describe('DELETE /auth/logout - logout from current session', () => {
     expect(response.header['set-cookie']).toBeUndefined();
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser1'
+    const dbOps = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query('SELECT * FROM admin AS a WHERE a.id = "testuser1"')
+      .fetchAll();
+    expect(dbOps.resources.length).toBe(1);
+    expect(new Date(dbOps.resources[0].session.expiresAt) > new Date()).toBe(
+      true
     );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].expires) > new Date()).toBe(true);
     const expireDate = new Date();
     expireDate.setMinutes(expireDate.getMinutes() + 121);
-    expect(new Date(queryResult[0].expires) < expireDate).toBe(true);
+    expect(new Date(dbOps.resources[0].session.expiresAt) < expireDate).toBe(
+      true
+    );
   });
 
   test('Fail - Use refreshToken generated with wrong type value', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Create RefreshToken
-    MockDate.set(currentDate);
     const tokenContents: AuthToken = {
-      username: 'testuser1',
+      id: 'testuser1',
       type: 'access',
     };
     const jwtOption: jwt.SignOptions = {
@@ -290,12 +314,10 @@ describe('DELETE /auth/logout - logout from current session', () => {
     // Login request
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
 
     // Logout request
-    currentDate.setMinutes(currentDate.getMinutes() + 1);
-    MockDate.set(currentDate);
     response = await request(testEnv.expressServer.app)
       .delete('/auth/logout')
       .set('Cookie', [`X-REFRESH-TOKEN=${accessToken}`]);
@@ -305,28 +327,32 @@ describe('DELETE /auth/logout - logout from current session', () => {
     expect(response.header['set-cookie']).toBeUndefined();
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser1'
+    const dbOps = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query('SELECT * FROM admin AS a WHERE a.id = "testuser1"')
+      .fetchAll();
+    expect(dbOps.resources.length).toBe(1);
+    expect(new Date(dbOps.resources[0].session.expiresAt) > new Date()).toBe(
+      true
     );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].expires) > new Date()).toBe(true);
     const expireDate = new Date();
     expireDate.setMinutes(expireDate.getMinutes() + 121);
-    expect(new Date(queryResult[0].expires) < expireDate).toBe(true);
+    expect(new Date(dbOps.resources[0].session.expiresAt) < expireDate).toBe(
+      true
+    );
   });
 
   test('Fail - No Token', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login request
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
 
     // Logout request
-    currentDate.setMinutes(currentDate.getMinutes() + 1);
-    MockDate.set(currentDate);
     response = await request(testEnv.expressServer.app).delete('/auth/logout');
     expect(response.status).toBe(401);
 
@@ -334,14 +360,18 @@ describe('DELETE /auth/logout - logout from current session', () => {
     expect(response.header['set-cookie']).toBeUndefined();
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser1'
+    const dbOps = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query('SELECT * FROM admin AS a WHERE a.id = "testuser1"')
+      .fetchAll();
+    expect(dbOps.resources.length).toBe(1);
+    expect(new Date(dbOps.resources[0].session.expiresAt) > new Date()).toBe(
+      true
     );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].expires) > new Date()).toBe(true);
     const expireDate = new Date();
     expireDate.setMinutes(expireDate.getMinutes() + 121);
-    expect(new Date(queryResult[0].expires) < expireDate).toBe(true);
+    expect(new Date(dbOps.resources[0].session.expiresAt) < expireDate).toBe(
+      true
+    );
   });
 });

@@ -16,7 +16,7 @@
 2. `lint:fix`: 코드 검사 후 자동 수정 시도
 3. `build`: 타입스크립트 코드 컴파일 (destination: `dist` 디렉터리)
 4. `clean`: 컴파일 된 코드 삭제
-5. `start`: 코드 실행
+5. `start`: 코드 실행 (DB_KEY 환경변수 필요)
 6. `test`: 코드 테스트
 
 

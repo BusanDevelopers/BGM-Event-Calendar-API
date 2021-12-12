@@ -7,6 +7,7 @@
 // eslint-disable-next-line node/no-unpublished-import
 import * as request from 'supertest';
 import TestEnv from '../TestEnv';
+import ExpressServer from '../../src/ExpressServer';
 
 describe('General Behaviors', () => {
   let testEnv: TestEnv;
@@ -28,6 +29,8 @@ describe('General Behaviors', () => {
   });
 
   test('Not Found', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+
     const response = await request(testEnv.expressServer.app)
       .post('/not-existing-path')
       .send();
@@ -36,6 +39,8 @@ describe('General Behaviors', () => {
   });
 
   test('Not Permitted Methods', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+
     let response = await request(testEnv.expressServer.app)
       .options('/auth/login')
       .send();

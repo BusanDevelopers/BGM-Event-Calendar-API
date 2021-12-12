@@ -5,11 +5,12 @@
  */
 
 import * as express from 'express';
-import * as mariadb from 'mariadb';
+import * as Cosmos from '@azure/cosmos';
 import BadRequestError from '../exceptions/BadRequestError';
-import NotFoundError from '../exceptions/NotFoundError';
 import Event from '../datatypes/event/Event';
-import Participation from '../datatypes/participate/Participation';
+import Participation, {
+  ParticipationEditInfoDB,
+} from '../datatypes/participate/Participation';
 import ParticipationForm from '../datatypes/participate/ParticipationForm';
 import ParticipationEditForm from '../datatypes/participate/ParticipationEditForm';
 import ParticipationRetrieveResponse, {
@@ -24,15 +25,10 @@ const participateRouter = express.Router({mergeParams: true});
 
 // POST /event/{eventID}/participate
 participateRouter.post('/', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
-  const eventId = parseInt((req.params as {eventId: string}).eventId);
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
+  const {eventId} = req.params as {eventId: string};
 
   try {
-    // Check for numeric id, >= 1
-    if (isNaN(eventId) || eventId < 1) {
-      throw new NotFoundError();
-    }
-
     // Verify User Input
     const participationForm: ParticipationForm = req.body;
     if (!validateParticipationForm(participationForm)) {
@@ -40,24 +36,10 @@ participateRouter.post('/', async (req, res, next) => {
     }
 
     // Check Event Existence
-    if (!(await Event.exist(dbClient, eventId))) {
-      throw new NotFoundError();
-    }
-
-    // Check duplicated (having same name and email)
-    const {participantName, email, phoneNumber, comment} = participationForm;
-    if (
-      await Participation.existByEventIdNameEmail(
-        dbClient,
-        eventId,
-        participantName,
-        email
-      )
-    ) {
-      throw new BadRequestError();
-    }
+    await Event.read(dbClient, eventId);
 
     // Add request to DB
+    const {participantName, email, phoneNumber, comment} = participationForm;
     const newEntry = new Participation(
       eventId,
       new Date(),
@@ -77,22 +59,15 @@ participateRouter.post('/', async (req, res, next) => {
 
 // GET /event/{eventID}/participate
 participateRouter.get('', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
-  const eventId = parseInt((req.params as {eventId: string}).eventId);
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
+  const {eventId} = req.params as {eventId: string};
 
   try {
     // Verify Admin Access Token
     await verifyAccessToken(req, req.app.get('jwtAccessKey'));
 
-    // Check for numeric id, >= 1
-    if (isNaN(eventId) || eventId < 1) {
-      throw new NotFoundError();
-    }
-
     // Check for event existence
-    if (!(await Event.exist(dbClient, eventId))) {
-      throw new NotFoundError();
-    }
+    await Event.read(dbClient, eventId);
 
     // DB Operation
     const participationList = await Participation.readByEventId(
@@ -110,7 +85,7 @@ participateRouter.get('', async (req, res, next) => {
       };
       participationList.forEach(p => {
         (replyObj.participantsList as ParticipationEntry[]).push({
-          id: p.id as number,
+          id: p.id as string,
           participantName: p.participantName,
           phoneNumber: p.phoneNumber ? p.phoneNumber : undefined,
           email: p.email,
@@ -126,23 +101,13 @@ participateRouter.get('', async (req, res, next) => {
 
 // PUT: /event/{eventID}/participate/{ticketID}
 participateRouter.put('/:ticketId', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
-  const eventId = parseInt(
-    (req.params as {eventId: string; ticketId: string}).eventId
-  );
-  const ticketId = parseInt(req.params.ticketId);
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
+  const {eventId} = req.params as {eventId: string; ticketId: string};
+  const {ticketId} = req.params;
 
   try {
     // Verify Admin Access Token
     await verifyAccessToken(req, req.app.get('jwtAccessKey'));
-
-    // Check for numeric id, >= 1
-    if (isNaN(eventId) || eventId < 1) {
-      throw new NotFoundError();
-    }
-    if (isNaN(ticketId) || ticketId < 1) {
-      throw new NotFoundError();
-    }
 
     // Verify User's request
     const participationEditForm: ParticipationEditForm = req.body;
@@ -151,26 +116,28 @@ participateRouter.put('/:ticketId', async (req, res, next) => {
     }
 
     // Create new participation object
-    const participation = await Participation.readByEventIdTicketId(
-      dbClient,
-      eventId,
-      ticketId
-    );
-    participation.participantName = participationEditForm.participantName
-      ? participationEditForm.participantName
-      : participation.participantName;
-    participation.email = participationEditForm.email
+    const participationEditInfo: ParticipationEditInfoDB = {};
+    participationEditInfo.participantName =
+      participationEditForm.participantName
+        ? participationEditForm.participantName
+        : undefined;
+    participationEditInfo.email = participationEditForm.email
       ? participationEditForm.email
-      : participation.email;
-    participation.phoneNumber = participationEditForm.phoneNumber
+      : undefined;
+    participationEditInfo.phoneNumber = participationEditForm.phoneNumber
       ? participationEditForm.phoneNumber
-      : participation.phoneNumber;
-    participation.comment = participationEditForm.comment
+      : undefined;
+    participationEditInfo.comment = participationEditForm.comment
       ? participationEditForm.comment
-      : participation.comment;
+      : undefined;
 
     // DB Operation
-    await Participation.update(dbClient, eventId, ticketId, participation);
+    await Participation.update(
+      dbClient,
+      eventId,
+      ticketId,
+      participationEditInfo
+    );
 
     // Response
     res.status(200).send();
@@ -181,23 +148,13 @@ participateRouter.put('/:ticketId', async (req, res, next) => {
 
 // DELETE /event/{eventID}/participate/{ticketID}
 participateRouter.delete('/:ticketId', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
-  const eventId = parseInt(
-    (req.params as {eventId: string; ticketId: string}).eventId
-  );
-  const ticketId = parseInt(req.params.ticketId);
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
+  const {eventId} = req.params as {eventId: string; ticketId: string};
+  const {ticketId} = req.params;
 
   try {
     // Verify Admin Access Token
     await verifyAccessToken(req, req.app.get('jwtAccessKey'));
-
-    // Check for numeric id, >= 1
-    if (isNaN(eventId) || eventId < 1) {
-      throw new NotFoundError();
-    }
-    if (isNaN(ticketId) || ticketId < 1) {
-      throw new NotFoundError();
-    }
 
     // DB Operation
     await Participation.delete(dbClient, eventId, ticketId);

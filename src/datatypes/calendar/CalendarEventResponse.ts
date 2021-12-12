@@ -8,7 +8,7 @@
  * Interface to define event entry of response.eventList
  */
 export interface EventEntry {
-  id: number;
+  id: string;
   name: string;
   date: number;
   category: string | undefined;

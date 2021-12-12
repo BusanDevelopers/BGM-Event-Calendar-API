@@ -5,9 +5,9 @@
  */
 
 import {Request} from 'express';
-import * as mariadb from 'mariadb';
+import * as Cosmos from '@azure/cosmos';
 import * as jwt from 'jsonwebtoken';
-import AdminSession from '../../datatypes/authentication/AdminSession';
+import Admin from '../../datatypes/authentication/Admin';
 import AuthToken from '../../datatypes/authentication/AuthToken';
 import JWTObject from '../../datatypes/authentication/JWTObject';
 import RefreshTokenVerifyResult from '../../datatypes/authentication/RefreshTokenVerifyResult';
@@ -20,14 +20,14 @@ import createRefreshToken from './createRefreshToken';
  *
  * @param req Express Request object
  * @param jwtRefreshKey JWT Refresh Token secret
- * @param dbClient DB Connection Pool
+ * @param dbClient DB Client (Cosmos Database)
  * @return {Promise<RefreshTokenVerifyResult>} verification result of refresh token
  *   (new token included if the refresh token is about to expire)
  */
 export default async function verifyRefreshToken(
   req: Request,
   jwtRefreshKey: string,
-  dbClient: mariadb.Pool
+  dbClient: Cosmos.Database
 ): Promise<RefreshTokenVerifyResult> {
   if (!('X-REFRESH-TOKEN' in req.cookies)) {
     throw new AuthenticationError();
@@ -46,13 +46,11 @@ export default async function verifyRefreshToken(
   }
 
   // Check token in DB
+  let dbToken;
   try {
-    const dbToken = await AdminSession.read(
-      dbClient,
-      req.cookies['X-REFRESH-TOKEN']
-    );
+    dbToken = await Admin.readSession(dbClient, req.cookies['X-REFRESH-TOKEN']);
     /* istanbul ignore if */
-    if (dbToken.expires < new Date()) {
+    if (dbToken.expiresAt < new Date()) {
       throw new AuthenticationError();
     }
   } catch (e) {
@@ -69,16 +67,15 @@ export default async function verifyRefreshToken(
   expectedExpire.setMinutes(new Date().getMinutes() + 20);
   let newRefreshToken;
   let oldSession;
-  if (new Date((tokenContents.exp as number) * 1000) < expectedExpire) {
+  if (new Date(dbToken.expiresAt) < expectedExpire) {
     // Less than 20 min remaining
     newRefreshToken = await createRefreshToken(
       dbClient,
-      tokenContents.username,
+      tokenContents.id,
       jwtRefreshKey
     );
     oldSession = {
-      username: tokenContents.username,
-      expires: new Date((tokenContents.exp as number) * 1000),
+      expiresAt: new Date((tokenContents.exp as number) * 1000),
       token: req.cookies['X-REFRESH-TOKEN'],
     };
   }

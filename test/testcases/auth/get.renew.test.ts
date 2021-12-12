@@ -7,13 +7,17 @@
 // eslint-disable-next-line node/no-unpublished-import
 import * as request from 'supertest';
 import * as jwt from 'jsonwebtoken';
-// eslint-disable-next-line node/no-unpublished-import
-import MockDate from 'mockdate';
+import * as Cosmos from '@azure/cosmos';
 import TestEnv from '../../TestEnv';
+import ExpressServer from '../../../src/ExpressServer';
 import AuthToken from '../../../src/datatypes/authentication/AuthToken';
+import invalidateToken from '../../utils/invalidateToken';
 
 describe('GET /auth/renew - renew access/refresh token', () => {
   let testEnv: TestEnv;
+
+  // DB Container ID
+  const ADMIN = 'admin';
 
   beforeAll(() => {
     jest.setTimeout(120000);
@@ -30,13 +34,13 @@ describe('GET /auth/renew - renew access/refresh token', () => {
   });
 
   test('Success', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
 
     // Login
-    MockDate.set(currentDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
     const refreshToken = response.header['set-cookie'][1]
       .split('; ')[0]
@@ -59,12 +63,12 @@ describe('GET /auth/renew - renew access/refresh token', () => {
       testEnv.testConfig.jwt.secretKey,
       jwtOption
     ) as AuthToken; // Check for AccessToken contents
-    expect(tokenPayload.username).toBe('testuser1');
+    expect(tokenPayload.id).toBe('testuser1');
     expect(tokenPayload.type).toBe('access');
 
     // Passed 20 min (Refresh token alive, access token expired
-    currentDate.setMinutes(currentDate.getMinutes() + 20);
-    MockDate.set(currentDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 20);
+    expect(affectedSessions).toBe(1);
     // Renew Request
     response = await request(testEnv.expressServer.app)
       .get('/auth/renew')
@@ -80,26 +84,26 @@ describe('GET /auth/renew - renew access/refresh token', () => {
       testEnv.testConfig.jwt.secretKey,
       jwtOption
     ) as AuthToken; // Check for AccessToken contents
-    expect(tokenPayload.username).toBe('testuser1');
+    expect(tokenPayload.id).toBe('testuser1');
     expect(tokenPayload.type).toBe('access');
   });
 
   test('Success - Refresh Token about to expire', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
 
     // Login
-    MockDate.set(currentDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
     const refreshToken = response.header['set-cookie'][1]
       .split('; ')[0]
       .split('=')[1];
 
     // Passed 110 min (Refresh token about to expire, access token expired)
-    currentDate.setMinutes(currentDate.getMinutes() + 110);
-    MockDate.set(currentDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 110);
+    expect(affectedSessions).toBe(1);
     // Renew Request
     response = await request(testEnv.expressServer.app)
       .get('/auth/renew')
@@ -116,7 +120,7 @@ describe('GET /auth/renew - renew access/refresh token', () => {
       testEnv.testConfig.jwt.refreshKey,
       jwtOption
     ) as AuthToken; // Check for AccessToken contents
-    expect(tokenPayload.username).toBe('testuser1');
+    expect(tokenPayload.id).toBe('testuser1');
     expect(tokenPayload.type).toBe('refresh');
     // Parse Access Token
     cookie = response.header['set-cookie'][1].split('; ')[0].split('=');
@@ -126,26 +130,26 @@ describe('GET /auth/renew - renew access/refresh token', () => {
       testEnv.testConfig.jwt.secretKey,
       jwtOption
     ) as AuthToken; // Check for AccessToken contents
-    expect(tokenPayload.username).toBe('testuser1');
+    expect(tokenPayload.id).toBe('testuser1');
     expect(tokenPayload.type).toBe('access');
   });
 
   test('Fail - Invalid Token', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
 
     // Login
-    MockDate.set(currentDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
     const accessToken = response.header['set-cookie'][0]
       .split('; ')[0]
       .split('=')[1];
 
     // Passed 10 min (Both tokens alive)
-    currentDate.setMinutes(currentDate.getMinutes() + 10);
-    MockDate.set(currentDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 10);
+    expect(affectedSessions).toBe(1);
     // Renew Request
     response = await request(testEnv.expressServer.app)
       .get('/auth/renew')
@@ -157,18 +161,18 @@ describe('GET /auth/renew - renew access/refresh token', () => {
   });
 
   test('Fail - No Token', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
 
     // Login
-    MockDate.set(currentDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
 
     // Passed 10 min (Both tokens alive)
-    currentDate.setMinutes(currentDate.getMinutes() + 10);
-    MockDate.set(currentDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 10);
+    expect(affectedSessions).toBe(1);
     // Renew Request
     response = await request(testEnv.expressServer.app).get('/auth/renew');
     expect(response.status).toBe(401);
@@ -178,29 +182,27 @@ describe('GET /auth/renew - renew access/refresh token', () => {
   });
 
   test('Fail - Token not in DB (logged out)', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
 
     // Login
-    MockDate.set(currentDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
     const refreshToken = response.header['set-cookie'][1]
       .split('; ')[0]
       .split('=')[1];
 
     // Logout
-    currentDate.setSeconds(currentDate.getSeconds() + 1);
-    MockDate.set(currentDate);
     response = await request(testEnv.expressServer.app)
       .delete('/auth/logout')
       .set('Cookie', [`X-REFRESH-TOKEN=${refreshToken}`]);
     expect(response.status).toBe(200);
 
     // Passed 20 min (Refresh token alive, access token expired
-    currentDate.setMinutes(currentDate.getMinutes() + 20);
-    MockDate.set(currentDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 20);
+    expect(affectedSessions).toBe(0);
     // Renew Request
     response = await request(testEnv.expressServer.app)
       .get('/auth/renew')
@@ -212,27 +214,24 @@ describe('GET /auth/renew - renew access/refresh token', () => {
   });
 
   test('Fail - Admin user deleted', async () => {
-    const currentDate = new Date();
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
 
     // Login
-    MockDate.set(currentDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser1', password: 'Password13!'});
+      .send({id: 'testuser1', password: 'Password13!'});
     expect(response.status).toBe(200);
     const refreshToken = response.header['set-cookie'][1]
       .split('; ')[0]
       .split('=')[1];
 
     // Remove admin entry
-    await testEnv.dbClient.query(
-      'DELETE from admin where username = ?',
-      'testuser1'
-    );
+    await testEnv.dbClient.container(ADMIN).item('testuser1').delete();
 
     // Passed 20 min (Refresh token alive, access token expired
-    currentDate.setMinutes(currentDate.getMinutes() + 20);
-    MockDate.set(currentDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 10);
+    expect(affectedSessions).toBe(0);
     // Renew Request
     response = await request(testEnv.expressServer.app)
       .get('/auth/renew')

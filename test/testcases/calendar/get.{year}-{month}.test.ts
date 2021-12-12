@@ -6,7 +6,9 @@
 
 // eslint-disable-next-line node/no-unpublished-import
 import * as request from 'supertest';
+import * as Cosmos from '@azure/cosmos';
 import TestEnv from '../../TestEnv';
+import ExpressServer from '../../../src/ExpressServer';
 
 describe('GET /{year}-{month}', () => {
   let testEnv: TestEnv;
@@ -28,6 +30,9 @@ describe('GET /{year}-{month}', () => {
   });
 
   test('Success - No Event', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Request
     const response = await request(testEnv.expressServer.app).get('/2022-01');
     expect(response.status).toBe(200);
@@ -36,6 +41,9 @@ describe('GET /{year}-{month}', () => {
   });
 
   test('Success - Multiple Event (with/without category)', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Request
     const response = await request(testEnv.expressServer.app).get('/2021-08');
     expect(response.status).toBe(200);
@@ -56,6 +64,9 @@ describe('GET /{year}-{month}', () => {
   });
 
   test('Success - One Event (without category)', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Request
     const response = await request(testEnv.expressServer.app).get('/2021-12');
     expect(response.status).toBe(200);
@@ -67,6 +78,9 @@ describe('GET /{year}-{month}', () => {
   });
 
   test('Success - One Event (with category)', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Request
     const response = await request(testEnv.expressServer.app).get('/2021-10');
     expect(response.status).toBe(200);
@@ -79,9 +93,12 @@ describe('GET /{year}-{month}', () => {
   });
 
   test('Success - Newly Added Event', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Information that used during the test
     const loginCredentials = {
-      username: 'testuser1',
+      id: 'testuser1',
       password: 'Password13!',
     };
     const requiredPayload = {
@@ -123,6 +140,9 @@ describe('GET /{year}-{month}', () => {
   });
 
   test('Fail - Non number params', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Non-Number Month
     let response = await request(testEnv.expressServer.app).get('/2022-jan');
     expect(response.status).toBe(400);
@@ -140,6 +160,9 @@ describe('GET /{year}-{month}', () => {
   });
 
   test('Fail - Invalid month', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     let response = await request(testEnv.expressServer.app).get('/2022-13');
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Bad Request');
@@ -150,6 +173,9 @@ describe('GET /{year}-{month}', () => {
   });
 
   test('Fail - Invalid year', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     const response = await request(testEnv.expressServer.app).get('/1997-6');
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Bad Request');

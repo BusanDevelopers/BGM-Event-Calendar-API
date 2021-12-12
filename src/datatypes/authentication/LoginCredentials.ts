@@ -8,6 +8,6 @@
  * Interface for LoginCredentials
  */
 export default interface LoginCredentials {
-  username: string;
+  id: string;
   password: string;
 }

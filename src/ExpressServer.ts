@@ -5,7 +5,7 @@
  */
 
 import * as express from 'express';
-import * as mariadb from 'mariadb';
+import {CosmosClient} from '@azure/cosmos';
 import * as cookieParser from 'cookie-parser';
 import ServerConfig from './ServerConfig';
 import HTTPError from './exceptions/HTTPError';
@@ -28,14 +28,10 @@ export default class ExpressServer {
     // Setup Express Application
     this.app = express();
     // Create DB Connection pool and link to the express application
-    this.app.locals.dbClient = mariadb.createPool({
-      host: config.db.url,
-      port: config.db.port,
-      user: config.db.username,
-      password: config.db.password,
-      database: config.db.defaultDatabase,
-      compress: true,
-    });
+    this.app.locals.dbClient = new CosmosClient({
+      endpoint: config.db.endpoint,
+      key: config.db.key,
+    }).database(config.db.databaseId);
 
     // JWT Keys
     this.app.set('jwtAccessKey', config.jwt.secretKey);
@@ -94,7 +90,7 @@ export default class ExpressServer {
    * - Close connection with Database server gracefully
    * - Flush Log
    */
-  async closeServer(): Promise<void> {
-    await this.app.locals.dbClient.end();
+  closeServer(): void {
+    this.app.locals.dbClient.client.dispose();
   }
 }

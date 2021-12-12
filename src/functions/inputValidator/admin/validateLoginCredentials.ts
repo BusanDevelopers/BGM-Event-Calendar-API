@@ -9,9 +9,9 @@ import Ajv from 'ajv';
 export const validateLoginCredentials = new Ajv().compile({
   type: 'object',
   properties: {
-    username: {type: 'string'},
+    id: {type: 'string'},
     password: {type: 'string'},
   },
-  required: ['username', 'password'],
+  required: ['id', 'password'],
   additionalProperties: false,
 });

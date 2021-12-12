@@ -5,9 +5,9 @@
  */
 
 import * as jwt from 'jsonwebtoken';
-import * as mariadb from 'mariadb';
+import * as Cosmos from '@azure/cosmos';
 import AuthToken from '../../datatypes/authentication/AuthToken';
-import AdminSession from '../../datatypes/authentication/AdminSession';
+import Admin from '../../datatypes/authentication/Admin';
 
 /**
  * Method to generate new refreshToken
@@ -17,24 +17,24 @@ import AdminSession from '../../datatypes/authentication/AdminSession';
  *  - Saved to DB admin_session table
  *    - If there exists previous session, invalidate the session
  *
- * @param dbClient DB Connection Pool (MariaDB)
+ * @param dbClient DB Client (Cosmos Database)
  * @param username unique username indicates the owner of this token
  * @param jwtRefreshKey jwt Refresh Token Secret
  * @return {Promise<string>} JWT refresh Token
  */
 export default async function createRefreshToken(
-  dbClient: mariadb.Pool,
-  username: AuthToken['username'],
+  dbClient: Cosmos.Database,
+  username: AuthToken['id'],
   jwtRefreshKey: string
 ): Promise<string> {
   // Token content
   const tokenContent: AuthToken = {
-    username: username,
+    id: username,
     type: 'refresh',
   };
 
   // Database - delete existing refreshTokens
-  await AdminSession.deleteByUsername(dbClient, username);
+  await Admin.updateSession(dbClient, username, undefined);
 
   // Generate RefreshToken
   const refreshToken = jwt.sign(tokenContent, jwtRefreshKey, {
@@ -45,8 +45,8 @@ export default async function createRefreshToken(
   // Database - Add new refresh token
   const expDate = new Date();
   expDate.setMinutes(expDate.getMinutes() + 120);
-  const session = {username: username, token: refreshToken, expires: expDate};
-  await AdminSession.create(dbClient, session);
+  const session = {token: refreshToken, expiresAt: expDate};
+  await Admin.updateSession(dbClient, username, session);
 
   return refreshToken;
 }

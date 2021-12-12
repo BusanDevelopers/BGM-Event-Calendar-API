@@ -24,25 +24,24 @@ if (process.argv.length !== 3) {
   process.exit(1);
 }
 
+if (!process.env.DB_ENDPOINT || !process.env.DB_KEY || !process.env.DB_ID) {
+  console.log('NEED DB_ENDPOINT, DB_KEY AND DB_ID ENV VARIABLE');
+  // eslint-disable-next-line no-process-exit
+  process.exit(1);
+}
+
 // Parse username and Call deleteAdmin()
-const config = new ServerConfig();
+const config = new ServerConfig(
+  process.env.DB_ENDPOINT,
+  process.env.DB_KEY,
+  process.env.DB_ID
+);
 deleteAdmin(process.argv[2], config).then(
   // DB Operation Success
-  value => {
-    if (value.affectedRows !== 1) {
-      console.error(
-        String.prototype.concat(
-          'No affectedRows!!\n\n',
-          'Check query result manually!!'
-        )
-      );
-      // eslint-disable-next-line no-process-exit
-      process.exit(1);
-    } else {
-      console.log('Successfully deleted existing admin account');
-      // eslint-disable-next-line no-process-exit
-      process.exit();
-    }
+  () => {
+    console.log('Successfully deleted existing admin account');
+    // eslint-disable-next-line no-process-exit
+    process.exit();
   },
   // DB Operation Fail
   error => {

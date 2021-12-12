@@ -6,13 +6,18 @@
 
 // eslint-disable-next-line node/no-unpublished-import
 import * as request from 'supertest';
+import * as Cosmos from '@azure/cosmos';
 import TestEnv from '../../TestEnv';
+import ExpressServer from '../../../src/ExpressServer';
 
 describe('GET /event/{eventID}/participate - Retrieve event participant information', () => {
   let testEnv: TestEnv;
 
+  // DB Container ID
+  const EVENT = 'event';
+
   // Information that used during the test
-  const loginCredentials = {username: 'testuser1', password: 'Password13!'};
+  const loginCredentials = {id: 'testuser1', password: 'Password13!'};
   let accessToken: string;
 
   beforeAll(() => {
@@ -25,6 +30,9 @@ describe('GET /event/{eventID}/participate - Retrieve event participant informat
 
     // Start Test Environment
     await testEnv.start();
+
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
 
     // Login
     const response = await request(testEnv.expressServer.app)
@@ -39,9 +47,21 @@ describe('GET /event/{eventID}/participate - Retrieve event participant informat
   });
 
   test('Success - Multiple participants', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID
+    const dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query(
+        'SELECT e.id FROM event AS e WHERE e.name = "비대면 정기 모임"'
+      )
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+
     // Request
     const response = await request(testEnv.expressServer.app)
-      .get('/event/3/participate')
+      .get(`/event/${eventId}/participate`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
     expect(response.status).toBe(200);
     expect(response.body.numParticipants).toBe(2);
@@ -58,12 +78,12 @@ describe('GET /event/{eventID}/participate - Retrieve event participant informat
           expect(p.phoneNumber).toBe('01012345678');
           expect(p.email).toBe('yhkim@gmail.com');
           expect(p.comment).toBe('음 계정은 yhkim 입니다.');
-          expect(p.id).toBe(2);
+          expect(Object.keys(p).includes('id')).toBe(true);
         } else if (p.participantName === '김말숙') {
           expect(p.phoneNumber).toBeUndefined();
           expect(p.email).toBe('mskim@gmail.com');
           expect(p.comment).toBe('음 계정은 mskim 입니다.');
-          expect(p.id).toBe(3);
+          expect(Object.keys(p).includes('id')).toBe(true);
         } else {
           fail();
         }
@@ -72,9 +92,19 @@ describe('GET /event/{eventID}/participate - Retrieve event participant informat
   });
 
   test('Success - Single participant', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID
+    const dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT e.id FROM event AS e WHERE e.name = "할로윈 파티"')
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+
     // Request
     const response = await request(testEnv.expressServer.app)
-      .get('/event/1/participate')
+      .get(`/event/${eventId}/participate`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
     expect(response.status).toBe(200);
     expect(response.body.numParticipants).toBe(1);
@@ -83,13 +113,25 @@ describe('GET /event/{eventID}/participate - Retrieve event participant informat
     expect(response.body.participantsList[0].phoneNumber).toBeUndefined();
     expect(response.body.participantsList[0].email).toBe('yhkim@gmail.com');
     expect(response.body.participantsList[0].comment).toBeUndefined();
-    expect(response.body.participantsList[0].id).toBe(1);
+    expect(Object.keys(response.body.participantsList[0]).includes('id')).toBe(
+      true
+    );
   });
 
   test('Success - No participant', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID
+    const dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT e.id FROM event AS e WHERE e.name = "광복절"')
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+
     // Request
     const response = await request(testEnv.expressServer.app)
-      .get('/event/2/participate')
+      .get(`/event/${eventId}/participate`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
     expect(response.status).toBe(200);
     expect(response.body.numParticipants).toBe(0);
@@ -97,6 +139,9 @@ describe('GET /event/{eventID}/participate - Retrieve event participant informat
   });
 
   test('Success - Newly created event without participant', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Create new event
     let response = await request(testEnv.expressServer.app)
       .post('/event')
@@ -119,6 +164,9 @@ describe('GET /event/{eventID}/participate - Retrieve event participant informat
   });
 
   test('Success - Newly created event with participants', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Create new event
     let response = await request(testEnv.expressServer.app)
       .post('/event')
@@ -156,9 +204,19 @@ describe('GET /event/{eventID}/participate - Retrieve event participant informat
   });
 
   test('Fail - Not authenticated user', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID
+    const dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT e.id FROM event AS e WHERE e.name = "할로윈 파티"')
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+
     // Request
     const response = await request(testEnv.expressServer.app).get(
-      '/event/1/participate'
+      `/event/${eventId}/participate`
     );
     expect(response.status).toBe(401);
     expect(response.body.error).toBe(
@@ -166,30 +224,10 @@ describe('GET /event/{eventID}/participate - Retrieve event participant informat
     );
   });
 
-  test('Fail - eventID not valid', async () => {
-    // Request (non-numeric eventID)
-    let response = await request(testEnv.expressServer.app)
-      .get('/event/halloween/participate')
-      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
-    expect(response.status).toBe(404);
-    expect(response.body.error).toBe('Not Found');
-
-    // Request (eventID = 0)
-    response = await request(testEnv.expressServer.app)
-      .get('/event/0/participate')
-      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
-    expect(response.status).toBe(404);
-    expect(response.body.error).toBe('Not Found');
-
-    // Request (eventID = -1)
-    response = await request(testEnv.expressServer.app)
-      .get('/event/-1/participate')
-      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
-    expect(response.status).toBe(404);
-    expect(response.body.error).toBe('Not Found');
-  });
-
   test('Fail - eventID not found', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Request (eventID not exist)
     const response = await request(testEnv.expressServer.app)
       .get('/event/100/participate')
