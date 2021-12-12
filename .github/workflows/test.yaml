@@ -47,7 +47,7 @@ jobs:
           -m 3g
           --cpus 2.0
 
-    name: Node ${{ matrix.node_version }} - ${{ matrix.architecture }} on ${{ matrix.os }}
+    name: Node ${{ matrix.node_version }} - ${{ matrix.architecture }} on ${{ matrix.container }}
 
     env:
       DB_HOST: cosmosdb-emulator
@@ -58,6 +58,7 @@ jobs:
       # Checks whether the container properly runs or not
       - name: Check CosmosDB Emulator
         run: |
+          sudo apt-get install -y wget
           wget https://${{ env.DB_HOST }}:${{ env.DB_PORT }}/_explorer/index.html --no-check-certificate
           cat index.html
 
