@@ -20,9 +20,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-        container:
-          - ubuntu:latest
-          - ubuntu:rolling
         node_version:
           - 14
           - 16
@@ -30,7 +27,6 @@ jobs:
           - x64
 
     # Service containers to run with test
-    container: ${{ matrix.container }}
     services:
       # Label used to access the service container
       cosmosdb:
@@ -46,7 +42,7 @@ jobs:
         options: >-
           -m 3g
           --cpus 2.0
-          --health-cmd "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8081'"
+          --health-cmd "timeout 5 bash -c 'wget -O- https://127.0.0.1:8081/_explorer/index.html --no-check-certificate'"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
@@ -54,7 +50,7 @@ jobs:
     name: Node ${{ matrix.node_version }} - ${{ matrix.architecture }} on ${{ matrix.container }}
 
     env:
-      DB_HOST: cosmosdb
+      DB_HOST: 127.0.0.1
       DB_PORT: 8081
 
     # Steps represent a sequence of tasks that will be executed as part of the job
@@ -63,8 +59,7 @@ jobs:
       - name: Check CosmosDB Emulator
         run: |
           apt update && apt install -y wget
-          wget https://${{ env.DB_HOST }}:${{ env.DB_PORT }}/_explorer/index.html --no-check-certificate
-          cat index.html
+          wget -O- https://${{ env.DB_HOST }}:${{ env.DB_PORT }}/_explorer/index.html --no-check-certificate
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Check out repository code
