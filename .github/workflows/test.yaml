@@ -46,6 +46,10 @@ jobs:
         options: >-
           -m 3g
           --cpus 2.0
+          --health-cmd "timeout 5 bash -c 'cat < /dev/null > /dev/tcp/127.0.0.1/8081'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
 
     name: Node ${{ matrix.node_version }} - ${{ matrix.architecture }} on ${{ matrix.container }}
 
