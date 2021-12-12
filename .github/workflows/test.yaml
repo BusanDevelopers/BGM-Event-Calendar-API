@@ -52,10 +52,10 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       # Wait for 1 min before setting up the container
-      - name: Sleep for 1 min
+      - name: Sleep for 2 min
         uses: jakejarvis/wait-action@master
         with:
-          time: '60s'
+          time: '120s'
 
       # Checks whether the container properly runs or not
       - name: Check CosmosDB Emulator
