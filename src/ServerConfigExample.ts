@@ -18,16 +18,18 @@ import ServerConfigTemplate from './ServerConfigTemplate';
 export default class ServerConfig extends ServerConfigTemplate {
   /**
    * Constructor for ServerConfig
+   *
+   * @param dbEndpoint {string} database endpoint url
+   * @param dbKey {string} primary key to access the CosmosDB Server
+   * @param dbId {string} database key to identify db
    */
   /* istanbul ignore next */
-  constructor() {
+  constructor(dbEndpoint: string, dbKey: string, dbId: string) {
     const config: ConfigObj = {
       db: {
-        url: 'localhost',
-        port: 3306,
-        username: 'apptest',
-        password: '',
-        defaultDatabase: 'bgm',
+        endpoint: dbEndpoint,
+        key: dbKey,
+        databaseId: dbId,
       },
       expressPort: 3000,
       jwtKeys: {secretKey: 'keySecret', refreshKey: 'keySecretRefresh'},
@@ -55,6 +57,6 @@ export default class ServerConfig extends ServerConfigTemplate {
     const salt: crypto.BinaryLike = id.toString() + additionalSalt.toString();
     return crypto
       .pbkdf2Sync(secretString, salt, 10, 64, 'sha512')
-      .toString('base64');
+      .toString('base64url');
   }
 }

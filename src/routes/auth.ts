@@ -5,13 +5,12 @@
  */
 
 import * as express from 'express';
-import * as mariadb from 'mariadb';
+import * as Cosmos from '@azure/cosmos';
 import ServerConfig from '../ServerConfig';
 import HTTPError from '../exceptions/HTTPError';
 import AuthenticationError from '../exceptions/AuthenticationError';
 import BadRequestError from '../exceptions/BadRequestError';
 import Admin from '../datatypes/authentication/Admin';
-import AdminSession from '../datatypes/authentication/AdminSession';
 import LoginCredentials from '../datatypes/authentication/LoginCredentials';
 import ChangePasswordForm from '../datatypes/authentication/ChangePasswordForm';
 import {validateLoginCredentials} from '../functions/inputValidator/admin/validateLoginCredentials';
@@ -27,7 +26,7 @@ const authRouter = express.Router();
 
 // POST: /auth/login
 authRouter.post('/login', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
 
   try {
     // Verify user input
@@ -36,19 +35,17 @@ authRouter.post('/login', async (req, res, next) => {
       throw new BadRequestError();
     }
     // Username & password rule check
-    if (!checkUsernameRule(loginCredentials.username)) {
+    if (!checkUsernameRule(loginCredentials.id)) {
       throw new AuthenticationError();
     }
-    if (
-      !checkPasswordRule(loginCredentials.username, loginCredentials.password)
-    ) {
+    if (!checkPasswordRule(loginCredentials.id, loginCredentials.password)) {
       throw new AuthenticationError();
     }
 
     // Retrieve User Information from DB
     let admin;
     try {
-      admin = await Admin.read(dbClient, loginCredentials.username);
+      admin = await Admin.read(dbClient, loginCredentials.id);
     } catch (e) {
       /* istanbul ignore else */
       if ((e as HTTPError).statusCode === 404) {
@@ -60,8 +57,8 @@ authRouter.post('/login', async (req, res, next) => {
 
     // Check password
     const hashedPassword = ServerConfig.hash(
-      admin.username,
-      admin.memberSince.toISOString(),
+      admin.id,
+      (admin.memberSince as Date).toISOString(),
       loginCredentials.password
     );
     if (hashedPassword !== admin.password) {
@@ -70,12 +67,12 @@ authRouter.post('/login', async (req, res, next) => {
 
     // Create Tokens
     const accessToken = createAccessToken(
-      admin.username,
+      admin.id,
       req.app.get('jwtAccessKey')
     );
     const refreshToken = await createRefreshToken(
       dbClient,
-      admin.username,
+      admin.id,
       req.app.get('jwtRefreshKey')
     );
 
@@ -100,7 +97,7 @@ authRouter.post('/login', async (req, res, next) => {
 
 // DELETE: auth/logout
 authRouter.delete('/logout', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
 
   try {
     // Verify Refresh Token
@@ -116,7 +113,7 @@ authRouter.delete('/logout', async (req, res, next) => {
     }
 
     // Remove token from DB
-    await AdminSession.deleteByToken(dbClient, refreshToken);
+    await Admin.updateRemoveSessionByToken(dbClient, refreshToken);
 
     // Clear Cookie & Response
     res.clearCookie('X-ACCESS-TOKEN', {httpOnly: true, maxAge: 0});
@@ -129,7 +126,7 @@ authRouter.delete('/logout', async (req, res, next) => {
 
 // GET: /auth/renew
 authRouter.get('/renew', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
 
   try {
     // Verify refresh Token
@@ -143,12 +140,11 @@ authRouter.get('/renew', async (req, res, next) => {
     const refreshToken = verifyResult.newToken;
 
     // Check admin user existence
-    // When admin user entry deleted, associated admin_session also removed
-    // (ON DELETE CASCADE)
+    // When admin user entry deleted, session also removed (embedded document)
 
     // Create new AccessToken
     const accessToken = createAccessToken(
-      verifyResult.content.username,
+      verifyResult.content.id,
       req.app.get('jwtAccessKey')
     );
 
@@ -174,7 +170,7 @@ authRouter.get('/renew', async (req, res, next) => {
 });
 
 authRouter.put('/password', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
 
   try {
     // Verify refresh Token
@@ -192,59 +188,49 @@ authRouter.put('/password', async (req, res, next) => {
     if (!validateChangePasswordForm(changePasswordForm)) {
       // Write previous session data before throw error
       if (refreshToken) {
-        await AdminSession.create(
-          dbClient,
-          verifyResult.oldSession as AdminSession
-        );
+        const id = verifyResult.content.id;
+        await Admin.updateSession(dbClient, id, verifyResult.oldSession);
       }
       throw new BadRequestError();
     }
     // Password Rule check for new password
     if (
       !checkPasswordRule(
-        verifyResult.content.username,
+        verifyResult.content.id,
         changePasswordForm.newPassword
       )
     ) {
       // Write previous session data before throw error
       if (refreshToken) {
-        await AdminSession.create(
-          dbClient,
-          verifyResult.oldSession as AdminSession
-        );
+        const id = verifyResult.content.id;
+        await Admin.updateSession(dbClient, id, verifyResult.oldSession);
       }
       throw new BadRequestError();
     }
 
     // Check whether the current password matches or not
-    const admin = await Admin.read(dbClient, verifyResult.content.username);
+    const admin = await Admin.read(dbClient, verifyResult.content.id);
     const hashedCurrentPW = ServerConfig.hash(
-      admin.username,
-      admin.memberSince.toISOString(),
+      admin.id,
+      (admin.memberSince as Date).toISOString(),
       changePasswordForm.currentPassword
     );
     if (hashedCurrentPW !== admin.password) {
       // Write previous session data before throw error
       if (refreshToken) {
-        await AdminSession.create(
-          dbClient,
-          verifyResult.oldSession as AdminSession
-        );
+        const id = verifyResult.content.id;
+        await Admin.updateSession(dbClient, id, verifyResult.oldSession);
       }
       throw new BadRequestError();
     }
 
     // Change Password
     const hashedNewPW = ServerConfig.hash(
-      admin.username,
-      admin.memberSince.toISOString(),
+      admin.id,
+      (admin.memberSince as Date).toISOString(),
       changePasswordForm.newPassword
     );
-    await Admin.updatePassword(
-      dbClient,
-      verifyResult.content.username,
-      hashedNewPW
-    );
+    await Admin.updatePassword(dbClient, verifyResult.content.id, hashedNewPW);
 
     // Response
     if (refreshToken) {

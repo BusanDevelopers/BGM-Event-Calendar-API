@@ -5,7 +5,7 @@
  */
 
 import * as express from 'express';
-import * as mariadb from 'mariadb';
+import * as Cosmos from '@azure/cosmos';
 import BadRequestError from '../exceptions/BadRequestError';
 import Event from '../datatypes/event/Event';
 import CalendarEventResponse, {
@@ -17,7 +17,7 @@ const calendarRouter = express.Router();
 
 // GET: /{year}-{month}
 calendarRouter.get('/:year-:month', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
   const year = parseInt(req.params.year);
   const month = parseInt(req.params.month);
 
@@ -42,7 +42,7 @@ calendarRouter.get('/:year-:month', async (req, res, next) => {
       };
       eventList.forEach(e => {
         (replyObj.eventList as EventEntry[]).push({
-          id: e.id as number,
+          id: e.id as string,
           name: e.name,
           date: new Date(e.date).getDate(),
           category: e.category ? e.category : undefined,

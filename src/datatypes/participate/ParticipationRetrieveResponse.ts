@@ -9,7 +9,7 @@
  * Interface to define participation entry of response.participantsList
  */
 export interface ParticipationEntry {
-  id: number;
+  id: string;
   participantName: string;
   phoneNumber: string | undefined;
   email: string;

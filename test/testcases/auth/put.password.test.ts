@@ -7,18 +7,22 @@
 // eslint-disable-next-line node/no-unpublished-import
 import * as request from 'supertest';
 import * as jwt from 'jsonwebtoken';
+import * as Cosmos from '@azure/cosmos';
 import TestEnv from '../../TestEnv';
-// eslint-disable-next-line node/no-unpublished-import
-import MockDate from 'mockdate';
 import TestConfig from '../../TestConfig';
+import ExpressServer from '../../../src/ExpressServer';
 import AuthToken from '../../../src/datatypes/authentication/AuthToken';
+import invalidateToken from '../../utils/invalidateToken';
 
-describe('PUT /auth/passward - Change Password', () => {
+describe('PUT /auth/password - Change Password', () => {
   let testEnv: TestEnv;
+
+  // DB Container ID
+  const ADMIN = 'admin';
 
   // Information that used during the test
   const loginCredentials = {
-    username: 'testuser1',
+    id: 'testuser1',
     password: 'Password13!',
   };
 
@@ -35,6 +39,9 @@ describe('PUT /auth/passward - Change Password', () => {
   });
 
   test('Success', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
@@ -53,32 +60,29 @@ describe('PUT /auth/passward - Change Password', () => {
     expect(response.header['set-cookie']).toBeUndefined();
 
     // DB Check - PW Changed
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].password).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        `SELECT * FROM admin AS a WHERE a.id = '${loginCredentials.id}'`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].password).toBe(
       TestConfig.hash(
-        loginCredentials.username,
-        new Date(queryResult[0].membersince).toISOString(),
+        loginCredentials.id,
+        new Date(queryResult.resources[0].memberSince).toISOString(),
         'NewPW1399!!'
       )
     );
-
     // DB Check - Session Not Changed
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(refreshToken);
+    expect(queryResult.resources[0].session.token).toBe(refreshToken);
   });
 
   test('Success - Token about to expire', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
-    const mockDate = new Date();
-    MockDate.set(mockDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
       .send(loginCredentials);
@@ -88,8 +92,8 @@ describe('PUT /auth/passward - Change Password', () => {
       .split('=')[1];
 
     // Passed 110 min (Refresh token about to expire, access token expired)
-    mockDate.setMinutes(mockDate.getMinutes() + 110);
-    MockDate.set(mockDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 110);
+    expect(affectedSessions).toBe(1);
     // Change Password Request
     response = await request(testEnv.expressServer.app)
       .put('/auth/password')
@@ -106,33 +110,32 @@ describe('PUT /auth/passward - Change Password', () => {
       testEnv.testConfig.jwt.refreshKey,
       {algorithms: ['HS512']}
     ) as AuthToken; // Check for AccessToken contents
-    expect(tokenPayload.username).toBe('testuser1');
+    expect(tokenPayload.id).toBe('testuser1');
     expect(tokenPayload.type).toBe('refresh');
 
     // DB Check - PW Changed
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].password).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        `SELECT * FROM admin AS a WHERE a.id = '${loginCredentials.id}'`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].password).toBe(
       TestConfig.hash(
-        loginCredentials.username,
-        new Date(queryResult[0].membersince).toISOString(),
+        loginCredentials.id,
+        new Date(queryResult.resources[0].memberSince).toISOString(),
         'NewPW1399!!'
       )
     );
-
-    // DB Check - Session Updated
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(cookie[1]);
+    // DB Check - Session Not Changed
+    expect(queryResult.resources[0].session.token).toBe(cookie[1]);
   });
 
   test('Fail - Not authorized', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
@@ -153,29 +156,28 @@ describe('PUT /auth/passward - Change Password', () => {
     );
 
     // DB Check - PW Not Changed
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].password).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        `SELECT * FROM admin AS a WHERE a.id = '${loginCredentials.id}'`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].password).toBe(
       TestConfig.hash(
-        loginCredentials.username,
-        new Date(queryResult[0].membersince).toISOString(),
+        loginCredentials.id,
+        new Date(queryResult.resources[0].memberSince).toISOString(),
         loginCredentials.password
       )
     );
-
-    // DB Check - Session Not updated
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(refreshToken);
+    // DB Check - Session Not Changed
+    expect(queryResult.resources[0].session.token).toBe(refreshToken);
   });
 
   test('Fail - Missing required field', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
@@ -194,32 +196,29 @@ describe('PUT /auth/passward - Change Password', () => {
     expect(response.body.error).toBe('Bad Request');
 
     // DB Check - PW Not Changed
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].password).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        `SELECT * FROM admin AS a WHERE a.id = '${loginCredentials.id}'`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].password).toBe(
       TestConfig.hash(
-        loginCredentials.username,
-        new Date(queryResult[0].membersince).toISOString(),
+        loginCredentials.id,
+        new Date(queryResult.resources[0].memberSince).toISOString(),
         loginCredentials.password
       )
     );
-
     // DB Check - Session Not Changed
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(refreshToken);
+    expect(queryResult.resources[0].session.token).toBe(refreshToken);
   });
 
   test('Fail - Missing required field / Token about to expire', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
-    const mockDate = new Date();
-    MockDate.set(mockDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
       .send(loginCredentials);
@@ -229,8 +228,8 @@ describe('PUT /auth/passward - Change Password', () => {
       .split('=')[1];
 
     // Passed 110 min (Refresh token about to expire, access token expired)
-    mockDate.setMinutes(mockDate.getMinutes() + 110);
-    MockDate.set(mockDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 110);
+    expect(affectedSessions).toBe(1);
     // Change Password Request without newPassword
     response = await request(testEnv.expressServer.app)
       .put('/auth/password')
@@ -240,29 +239,28 @@ describe('PUT /auth/passward - Change Password', () => {
     expect(response.body.error).toBe('Bad Request');
 
     // DB Check - PW Not Changed
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].password).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        `SELECT * FROM admin AS a WHERE a.id = '${loginCredentials.id}'`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].password).toBe(
       TestConfig.hash(
-        loginCredentials.username,
-        new Date(queryResult[0].membersince).toISOString(),
+        loginCredentials.id,
+        new Date(queryResult.resources[0].memberSince).toISOString(),
         loginCredentials.password
       )
     );
-
-    // DB Check - Session Not Updated
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(refreshToken);
+    // DB Check - Session Not Changed
+    expect(queryResult.resources[0].session.token).toBe(refreshToken);
   });
 
   test('Fail - Additional Field', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
@@ -285,32 +283,29 @@ describe('PUT /auth/passward - Change Password', () => {
     expect(response.body.error).toBe('Bad Request');
 
     // DB Check - PW Not Changed
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].password).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        `SELECT * FROM admin AS a WHERE a.id = '${loginCredentials.id}'`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].password).toBe(
       TestConfig.hash(
-        loginCredentials.username,
-        new Date(queryResult[0].membersince).toISOString(),
+        loginCredentials.id,
+        new Date(queryResult.resources[0].memberSince).toISOString(),
         loginCredentials.password
       )
     );
-
-    // DB Check - Session Not updated
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(refreshToken);
+    // DB Check - Session Not Changed
+    expect(queryResult.resources[0].session.token).toBe(refreshToken);
   });
 
   test('Fail - Additional Field / Token about to expire', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
-    const mockDate = new Date();
-    MockDate.set(mockDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
       .send(loginCredentials);
@@ -320,8 +315,8 @@ describe('PUT /auth/passward - Change Password', () => {
       .split('=')[1];
 
     // Passed 110 min (Refresh token about to expire, access token expired)
-    mockDate.setMinutes(mockDate.getMinutes() + 110);
-    MockDate.set(mockDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 110);
+    expect(affectedSessions).toBe(1);
     // Change Password Request with additional field
     response = await request(testEnv.expressServer.app)
       .put('/auth/password')
@@ -335,29 +330,28 @@ describe('PUT /auth/passward - Change Password', () => {
     expect(response.body.error).toBe('Bad Request');
 
     // DB Check - PW Not Changed
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].password).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        `SELECT * FROM admin AS a WHERE a.id = '${loginCredentials.id}'`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].password).toBe(
       TestConfig.hash(
-        loginCredentials.username,
-        new Date(queryResult[0].membersince).toISOString(),
+        loginCredentials.id,
+        new Date(queryResult.resources[0].memberSince).toISOString(),
         loginCredentials.password
       )
     );
-
-    // DB Check - Session Not Updated
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(refreshToken);
+    // DB Check - Session Not Changed
+    expect(queryResult.resources[0].session.token).toBe(refreshToken);
   });
 
   test('Fail - New Password rule', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
@@ -376,32 +370,29 @@ describe('PUT /auth/passward - Change Password', () => {
     expect(response.body.error).toBe('Bad Request');
 
     // DB Check - PW Not Changed
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].password).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        `SELECT * FROM admin AS a WHERE a.id = '${loginCredentials.id}'`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].password).toBe(
       TestConfig.hash(
-        loginCredentials.username,
-        new Date(queryResult[0].membersince).toISOString(),
+        loginCredentials.id,
+        new Date(queryResult.resources[0].memberSince).toISOString(),
         loginCredentials.password
       )
     );
-
-    // DB Check - Session Not updated
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(refreshToken);
+    // DB Check - Session Not Changed
+    expect(queryResult.resources[0].session.token).toBe(refreshToken);
   });
 
   test('Fail - New Password rule / Token about to expire', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
-    const mockDate = new Date();
-    MockDate.set(mockDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
       .send(loginCredentials);
@@ -411,8 +402,8 @@ describe('PUT /auth/passward - Change Password', () => {
       .split('=')[1];
 
     // Passed 110 min (Refresh token about to expire, access token expired)
-    mockDate.setMinutes(mockDate.getMinutes() + 110);
-    MockDate.set(mockDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 110);
+    expect(affectedSessions).toBe(1);
     // Change Password Request with invalid new password
     response = await request(testEnv.expressServer.app)
       .put('/auth/password')
@@ -424,29 +415,28 @@ describe('PUT /auth/passward - Change Password', () => {
     expect(response.body.error).toBe('Bad Request');
 
     // DB Check - PW Not Changed
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].password).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        `SELECT * FROM admin AS a WHERE a.id = '${loginCredentials.id}'`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].password).toBe(
       TestConfig.hash(
-        loginCredentials.username,
-        new Date(queryResult[0].membersince).toISOString(),
+        loginCredentials.id,
+        new Date(queryResult.resources[0].memberSince).toISOString(),
         loginCredentials.password
       )
     );
-
-    // DB Check - Session Not Updated
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(refreshToken);
+    // DB Check - Session Not Changed
+    expect(queryResult.resources[0].session.token).toBe(refreshToken);
   });
 
   test('Fail - Current Password not match', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
@@ -465,32 +455,29 @@ describe('PUT /auth/passward - Change Password', () => {
     expect(response.body.error).toBe('Bad Request');
 
     // DB Check - PW Not Changed
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].password).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        `SELECT * FROM admin AS a WHERE a.id = '${loginCredentials.id}'`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].password).toBe(
       TestConfig.hash(
-        loginCredentials.username,
-        new Date(queryResult[0].membersince).toISOString(),
+        loginCredentials.id,
+        new Date(queryResult.resources[0].memberSince).toISOString(),
         loginCredentials.password
       )
     );
-
-    // DB Check - Session Not updated
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(refreshToken);
+    // DB Check - Session Not Changed
+    expect(queryResult.resources[0].session.token).toBe(refreshToken);
   });
 
   test('Fail - Current Password not match / Token about to expire', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
-    const mockDate = new Date();
-    MockDate.set(mockDate);
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
       .send(loginCredentials);
@@ -500,8 +487,8 @@ describe('PUT /auth/passward - Change Password', () => {
       .split('=')[1];
 
     // Passed 110 min (Refresh token about to expire, access token expired)
-    mockDate.setMinutes(mockDate.getMinutes() + 110);
-    MockDate.set(mockDate);
+    const affectedSessions = await invalidateToken(testEnv.dbClient, 110);
+    expect(affectedSessions).toBe(1);
     // Change Password Request with wrong current password
     response = await request(testEnv.expressServer.app)
       .put('/auth/password')
@@ -511,25 +498,21 @@ describe('PUT /auth/passward - Change Password', () => {
     expect(response.body.error).toBe('Bad Request');
 
     // DB Check - PW Not Changed
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].password).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        `SELECT * FROM admin AS a WHERE a.id = '${loginCredentials.id}'`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].password).toBe(
       TestConfig.hash(
-        loginCredentials.username,
-        new Date(queryResult[0].membersince).toISOString(),
+        loginCredentials.id,
+        new Date(queryResult.resources[0].memberSince).toISOString(),
         loginCredentials.password
       )
     );
-
-    // DB Check - Session Not Updated
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      [loginCredentials.username]
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(refreshToken);
+    // DB Check - Session Not Changed
+    expect(queryResult.resources[0].session.token).toBe(refreshToken);
   });
 });

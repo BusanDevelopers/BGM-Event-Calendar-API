@@ -18,11 +18,11 @@ import AuthToken from '../../datatypes/authentication/AuthToken';
  * @return {string} JWT access token
  */
 export default function createAccessToken(
-  username: AuthToken['username'],
+  username: AuthToken['id'],
   jwtAccessKey: string
 ): string {
   const tokenContent: AuthToken = {
-    username: username,
+    id: username,
     type: 'access',
   };
 

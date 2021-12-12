@@ -6,13 +6,18 @@
 
 // eslint-disable-next-line node/no-unpublished-import
 import * as request from 'supertest';
+import * as Cosmos from '@azure/cosmos';
 import TestEnv from '../../TestEnv';
+import ExpressServer from '../../../src/ExpressServer';
 
 describe('DELETE /event/{eventID} - Delete an existing event', () => {
   let testEnv: TestEnv;
 
+  // DB Container ID
+  const EVENT = 'event';
+
   // Information that used during the test
-  const loginCredentials = {username: 'testuser1', password: 'Password13!'};
+  const loginCredentials = {id: 'testuser1', password: 'Password13!'};
 
   beforeAll(() => {
     jest.setTimeout(120000);
@@ -31,6 +36,9 @@ describe('DELETE /event/{eventID} - Delete an existing event', () => {
   });
 
   test('Success - Delete event that I newly registered', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
@@ -59,19 +67,24 @@ describe('DELETE /event/{eventID} - Delete an existing event', () => {
     expect(response.status).toBe(200);
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query('SELECT * FROM event');
-    expect(queryResult.length).toBe(4);
-    const checkTarget = queryResult.filter((r: {id: number}) => r.id === 1);
-    expect(checkTarget[0].date.toISOString()).toBe(
-      new Date(2021, 9, 31).toISOString()
+    const queryResult = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT * FROM event')
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(4);
+    const checkTarget = queryResult.resources.filter(
+      (r: {name: string}) => r.name === '할로윈 파티'
     );
-    expect(checkTarget[0].name).toBe('할로윈 파티');
-    expect(checkTarget[0].detail).toBe(null);
+    expect(checkTarget[0].date).toBe(new Date(2021, 9, 31).toISOString());
+    expect(checkTarget[0].detail).toBeUndefined();
     expect(checkTarget[0].category).toBe('네트워킹');
     expect(checkTarget[0].editor).toBe('testuser1');
   });
 
   test('Success - Delete event that I previously registered', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
@@ -81,26 +94,36 @@ describe('DELETE /event/{eventID} - Delete an existing event', () => {
       .split('; ')[0]
       .split('=')[1];
 
+    // Get Event ID for newly registered event
+    response = await request(testEnv.expressServer.app).get('/2021-10');
+    expect(response.status).toBe(200);
+    const eventId = response.body.eventList[0].id;
+
     // Delete the event
     response = await request(testEnv.expressServer.app)
-      .delete('/event/1')
+      .delete(`/event/${eventId}`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
     expect(response.status).toBe(200);
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query('SELECT * FROM event');
-    expect(queryResult.length).toBe(3);
-    const checkTarget = queryResult.filter((r: {id: number}) => r.id === 2);
-    expect(checkTarget[0].date.toISOString()).toBe(
-      new Date(2021, 7, 15).toISOString()
+    const queryResult = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT * FROM event')
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(3);
+    const checkTarget = queryResult.resources.filter(
+      (r: {name: string}) => r.name === '광복절'
     );
-    expect(checkTarget[0].name).toBe('광복절');
-    expect(checkTarget[0].detail).toBe(null);
-    expect(checkTarget[0].category).toBe(null);
+    expect(checkTarget[0].date).toBe(new Date(2021, 7, 15).toISOString());
+    expect(checkTarget[0].detail).toBeUndefined();
+    expect(checkTarget[0].category).toBeUndefined();
     expect(checkTarget[0].editor).toBe('testuser2');
   });
 
   test('Success - Delete event that other person registered', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
@@ -110,26 +133,38 @@ describe('DELETE /event/{eventID} - Delete an existing event', () => {
       .split('; ')[0]
       .split('=')[1];
 
+    // Get Event ID for newly registered event
+    response = await request(testEnv.expressServer.app).get('/2021-8');
+    expect(response.status).toBe(200);
+    const eventId = response.body.eventList.filter(
+      (e: {name: string}) => e.name === '비대면 정기 모임'
+    )[0].id;
+
     // Delete the event
     response = await request(testEnv.expressServer.app)
-      .delete('/event/3')
+      .delete(`/event/${eventId}`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
     expect(response.status).toBe(200);
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query('SELECT * FROM event');
-    expect(queryResult.length).toBe(3);
-    const checkTarget = queryResult.filter((r: {id: number}) => r.id === 2);
-    expect(checkTarget[0].date.toISOString()).toBe(
-      new Date(2021, 7, 15).toISOString()
+    const queryResult = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT * FROM event')
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(3);
+    const checkTarget = queryResult.resources.filter(
+      (r: {name: string}) => r.name === '광복절'
     );
-    expect(checkTarget[0].name).toBe('광복절');
-    expect(checkTarget[0].detail).toBe(null);
-    expect(checkTarget[0].category).toBe(null);
+    expect(checkTarget[0].date).toBe(new Date(2021, 7, 15).toISOString());
+    expect(checkTarget[0].detail).toBeUndefined();
+    expect(checkTarget[0].category).toBeUndefined();
     expect(checkTarget[0].editor).toBe('testuser2');
   });
 
   test('Success - Delete event with duplicated name', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
@@ -158,19 +193,24 @@ describe('DELETE /event/{eventID} - Delete an existing event', () => {
     expect(response.status).toBe(200);
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query('SELECT * FROM event');
-    expect(queryResult.length).toBe(4);
-    const checkTarget = queryResult.filter((r: {id: number}) => r.id === 1);
-    expect(checkTarget[0].date.toISOString()).toBe(
-      new Date(2021, 9, 31).toISOString()
+    const queryResult = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT * FROM event')
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(4);
+    const checkTarget = queryResult.resources.filter(
+      (r: {name: string}) => r.name === '할로윈 파티'
     );
-    expect(checkTarget[0].name).toBe('할로윈 파티');
-    expect(checkTarget[0].detail).toBe(null);
+    expect(checkTarget[0].date).toBe(new Date(2021, 9, 31).toISOString());
+    expect(checkTarget[0].detail).toBeUndefined();
     expect(checkTarget[0].category).toBe('네트워킹');
     expect(checkTarget[0].editor).toBe('testuser1');
   });
 
   test('Fail - Not authorized user', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Delete the event
     const response = await request(testEnv.expressServer.app)
       .delete('/event/3')
@@ -181,25 +221,10 @@ describe('DELETE /event/{eventID} - Delete an existing event', () => {
     );
   });
 
-  test('Fail - Invalid Event ID (Non-numeric)', async () => {
-    // Login
-    let response = await request(testEnv.expressServer.app)
-      .post('/auth/login')
-      .send(loginCredentials);
-    expect(response.status).toBe(200);
-    const accessToken = response.header['set-cookie'][0]
-      .split('; ')[0]
-      .split('=')[1];
-
-    // Delete the event
-    response = await request(testEnv.expressServer.app)
-      .delete('/event/halloween-party')
-      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`]);
-    expect(response.status).toBe(404);
-    expect(response.body.error).toBe('Not Found');
-  });
-
   test('Fail - Event ID Not Found', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Login
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')

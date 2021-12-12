@@ -5,7 +5,7 @@
  * @author Hyecheol (Jerry) Jang <hyecheol123@gmail.com>
  */
 
-import * as mariadb from 'mariadb';
+import * as Cosmos from '@azure/cosmos';
 import {BinaryLike} from 'crypto';
 import ServerConfigTemplate from '../../ServerConfigTemplate';
 import Admin from '../../datatypes/authentication/Admin';
@@ -15,15 +15,15 @@ import checkPasswordRule from '../inputValidator/admin/checkPasswordRule';
 /**
  * Function to add new admin account
  *
- * @param username username of new admin
+ * @param id username of new admin
  * @param password password of new admin
  * @param name name of new admin
  * @param hashFunc hash function to hash the password
  * @param config instance of ServerConfigTemplate, containing DB connection information
- * @return Promise<mariadb.UpsertResult> DB operation result
+ * @return Promise<Cosmos.ItemResponse<Admin>> DB operation result
  */
 export default async function newAdmin(
-  username: string,
+  id: string,
   password: string,
   name: string,
   hashFunc: (
@@ -32,41 +32,25 @@ export default async function newAdmin(
     secretString: BinaryLike
   ) => string,
   config: ServerConfigTemplate
-): Promise<mariadb.UpsertResult> {
+): Promise<Cosmos.ItemResponse<Admin>> {
   // Check username and password rule
-  if (!checkUsernameRule(username)) {
+  if (!checkUsernameRule(id)) {
     throw new Error('Invalid Username');
   }
-  if (!checkPasswordRule(username, password)) {
+  if (!checkPasswordRule(id, password)) {
     throw new Error('Invalid Password');
   }
 
   // Generate Admin object with hashed password
   const memberSince = new Date();
   memberSince.setMilliseconds(0);
-  const hashedPassword = hashFunc(
-    username,
-    memberSince.toISOString(),
-    password
-  );
-  const admin = new Admin(username, hashedPassword, name, memberSince);
+  const hashedPassword = hashFunc(id, memberSince.toISOString(), password);
+  const admin = new Admin(id, hashedPassword, name, memberSince);
 
   // Create new admin entry on database
-  const dbClient = mariadb.createPool({
-    host: config.db.url,
-    port: config.db.port,
-    user: config.db.username,
-    password: config.db.password,
-    database: config.db.defaultDatabase,
-    compress: true,
-  });
-  let result;
-  try {
-    result = await Admin.create(dbClient, admin);
-    await dbClient.end();
-  } catch (e) {
-    await dbClient.end();
-    throw e;
-  }
-  return result;
+  const dbClient = new Cosmos.CosmosClient({
+    endpoint: config.db.endpoint,
+    key: config.db.key,
+  }).database(config.db.databaseId);
+  return await Admin.create(dbClient, admin);
 }

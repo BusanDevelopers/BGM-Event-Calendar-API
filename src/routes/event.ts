@@ -5,10 +5,9 @@
  */
 
 import * as express from 'express';
-import * as mariadb from 'mariadb';
+import * as Cosmos from '@azure/cosmos';
 import BadRequestError from '../exceptions/BadRequestError';
-import NotFoundError from '../exceptions/NotFoundError';
-import Event from '../datatypes/event/Event';
+import Event, {EventEditInfoDB} from '../datatypes/event/Event';
 import EventForm from '../datatypes/event/EventForm';
 import EventEditForm from '../datatypes/event/EventEditForm';
 import {validateEventForm} from '../functions/inputValidator/event/validateEventForm';
@@ -21,7 +20,7 @@ const eventRouter = express.Router();
 
 // POST: /event
 eventRouter.post('/', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
 
   try {
     // Verify Access Token
@@ -47,10 +46,12 @@ eventRouter.post('/', async (req, res, next) => {
       eventForm.month - 1, // using month index
       eventForm.date
     );
+    const createdDate = new Date();
     const event = new Event(
       eventDate,
+      createdDate,
       eventForm.name,
-      verifyResult.username,
+      verifyResult.id,
       eventForm.detail,
       eventForm.category
     );
@@ -67,17 +68,13 @@ eventRouter.post('/', async (req, res, next) => {
 
 // GET: /event/{eventID}
 eventRouter.get('/:eventId', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
-  const eventId = parseInt(req.params.eventId);
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
+  const {eventId} = req.params;
 
   try {
-    // Check for numeric id, >= 1
-    if (isNaN(eventId) || eventId < 1) {
-      throw new NotFoundError();
-    }
-
     // DB Operation
     const event = await Event.read(dbClient, eventId);
+    event.date = event.date as Date;
 
     // Response
     const resObj: EventForm = {
@@ -96,8 +93,8 @@ eventRouter.get('/:eventId', async (req, res, next) => {
 
 // PUT: /event/{eventID}
 eventRouter.put('/:eventId', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
-  const eventId = parseInt(req.params.eventId);
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
+  const {eventId} = req.params;
 
   try {
     // Verify Admin Access Token
@@ -106,19 +103,16 @@ eventRouter.put('/:eventId', async (req, res, next) => {
       req.app.get('jwtAccessKey')
     );
 
-    // Check for numeric id, >= 1
-    if (isNaN(eventId) || eventId < 1) {
-      throw new NotFoundError();
-    }
-
     // Verify User's request
     const eventEditForm: EventEditForm = req.body;
     if (!validateEventEditForm(eventEditForm)) {
       throw new BadRequestError();
     }
 
-    // Create new event object
+    // Create eventEditInfo
     const event = await Event.read(dbClient, eventId);
+    event.date = event.date as Date;
+    const eventEditInfo: EventEditInfoDB = {};
     // Date
     if (eventEditForm.year || eventEditForm.month || eventEditForm.date) {
       // Check Month and Date
@@ -135,17 +129,19 @@ eventRouter.put('/:eventId', async (req, res, next) => {
       if (endDate < date) {
         throw new BadRequestError();
       }
-      event.date = new Date(year, month - 1, date);
+      eventEditInfo.date = new Date(year, month - 1, date);
     }
-    event.name = eventEditForm.name ? eventEditForm.name : event.name;
-    event.editor = verifyResult.username;
-    event.detail = eventEditForm.detail ? eventEditForm.detail : event.detail;
-    event.category = eventEditForm.category
+    eventEditInfo.name = eventEditForm.name ? eventEditForm.name : undefined;
+    eventEditInfo.editor = verifyResult.id;
+    eventEditInfo.detail = eventEditForm.detail
+      ? eventEditForm.detail
+      : undefined;
+    eventEditInfo.category = eventEditForm.category
       ? eventEditForm.category
-      : event.category;
+      : undefined;
 
     // DB Operation
-    await Event.update(dbClient, eventId, event);
+    await Event.update(dbClient, eventId, eventEditInfo);
 
     // Response
     res.status(200).send();
@@ -156,17 +152,12 @@ eventRouter.put('/:eventId', async (req, res, next) => {
 
 // DELETE: /event/{eventID}
 eventRouter.delete('/:eventId', async (req, res, next) => {
-  const dbClient: mariadb.Pool = req.app.locals.dbClient;
-  const eventId = parseInt(req.params.eventId);
+  const dbClient: Cosmos.Database = req.app.locals.dbClient;
+  const {eventId} = req.params;
 
   try {
     // Verify Admin Access Token
     await verifyAccessToken(req, req.app.get('jwtAccessKey'));
-
-    // Check for numeric id, >= 1
-    if (isNaN(eventId) || eventId < 1) {
-      throw new NotFoundError();
-    }
 
     // DB Operation
     await Event.delete(dbClient, eventId);

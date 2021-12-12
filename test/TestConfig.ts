@@ -17,15 +17,23 @@ export default class TestConfig extends ServerConfigTemplate {
    * Constructor for ServerConfig
    *
    * @param identifier test name / used to identify test cases
+   * @param endpoint {string | undefined} url of server endpoint
+   * @param dbKey {string | undefined} key used to access Azure Cosmos DB
    */
-  constructor(identifier: string) {
+  constructor(
+    identifier: string,
+    endpoint?: string | undefined,
+    dbKey?: string | undefined
+  ) {
     const config: ConfigObj = {
       db: {
-        url: 'localhost',
-        port: 3306,
-        username: 'apptest',
-        password: '',
-        defaultDatabase: `db_${identifier}`,
+        endpoint: /* istanbul ignore next */ endpoint
+          ? endpoint
+          : 'https://localhost:8081',
+        key: /* istanbul ignore next */ dbKey
+          ? dbKey
+          : 'C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==',
+        databaseId: `db_${identifier}`,
       },
       expressPort: 3000,
       jwtKeys: {secretKey: 'keySecret', refreshKey: 'keySecretRefresh'},
@@ -49,6 +57,6 @@ export default class TestConfig extends ServerConfigTemplate {
     const salt: crypto.BinaryLike = id.toString() + additionalSalt.toString();
     return crypto
       .pbkdf2Sync(secretString, salt, 10, 64, 'sha512')
-      .toString('base64');
+      .toString('base64url');
   }
 }

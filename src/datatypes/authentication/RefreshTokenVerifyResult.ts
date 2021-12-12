@@ -17,8 +17,7 @@ export default interface RefreshTokenVerifyResult {
   newToken?: string; // new JWT token (created when the token is about to expire)
   oldSession?: {
     // Created when the token is about to expire
-    username: string;
-    expires: Date; // Previous expiration time
+    expiresAt: Date; // Previous expiration time
     token: string; // Old JWT Token
   };
 }

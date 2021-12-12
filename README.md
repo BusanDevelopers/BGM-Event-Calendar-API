@@ -16,8 +16,20 @@
 2. `lint:fix`: 코드 검사 후 자동 수정 시도
 3. `build`: 타입스크립트 코드 컴파일 (destination: `dist` 디렉터리)
 4. `clean`: 컴파일 된 코드 삭제
-5. `start`: 코드 실행
+5. `start`: 코드 실행 (DB_ENDPOINT, DB_KEY, DB_ID 환경변수 필요)
 6. `test`: 코드 테스트
+7. `newAdmin`: 새 관리자 계정 등록 (3개의 CLA 필요 - username, password, 사용자이름)
+8. `deleteAdmin`: 관리자 계정 삭제 (1개의 CLA 필요 - username) 
+
+테스트 시, Azure Cosmos DB 환경을 구현해주는 에뮬레이터를 사용합니다.
+에뮬레이터의 설치 및 사용에 관한 자세한 사항은 [이 링크](https://docs.microsoft.com/en-us/azure/cosmos-db/local-emulator?tabs=ssl-netstd21) 를 참고해주세요.  
+리눅스 도커 이미지도 제공되나, 심각한 성능상의 문제로 윈도우에서 에뮬레이터를 실행시키는 것을 권장합니다.
+이 경우, 외부 접근을 위한 별도의 설정이 필요합니다.
+위에서 제공된 링크를 참고하시기 바랍니다.
+
+현재, GitHub Action의 Windows Worker의 경우 Service Container 실행에 제약이 있습니다.
+이에 따라, Azure Cosmos DB Emulator가 GitHub Action Worker에서 정상적으로 실행되지 않습니다.
+이에, 현재 자동 테스트 기능은 비활성화되어있으며, 모든 기능에 대해서 PR 및 머지 전 로컬 환경에서의 테스트 및 코드 검토가 필요합니다.
 
 
 ## Dependencies/Environment
@@ -27,65 +39,60 @@
 타입스크립트 개발 환경을 쉽게 구축하기 위해 [gts](https://github.com/google/gts) 라이브러리가 사용되었습니다..
 `gts`에서 정의된 코드 스타일 규칙을 바탕으로, 더 엄격한 스타일 준수를 위해 [`.eslintrc.json` 파일](https://github.com/BusanDevelopers/BGM-Event-Calendar-API/blob/main/.eslintrc.json)에 정의한 대로 코드 스타일 규칙을 수정하였습니다.
 
-데이터베이스는 MySQL과 호환되는 [MariaDB](https://mariadb.org/)를 사용합니다.
+데이터베이스는 [Azure Cosmos DB](https://docs.microsoft.com/en-us/azure/cosmos-db/introduction) (Core(SQL) API)를 사용합니다.  
+NoSQL 데이터베이스이므로 별도의 스키마는 없으나, 아래의 Data Diagram에 맞추어 자료가 저장될 수 있도록 합니다.
 
 Data Diagram
-![ERD.svg](img/ERD.svg)
+![ERD.png](img/ERD.png)
 
 <details>
-  <summary>테이블을 만들기 위해 사용된 SQL Query를 보려면 클릭해 주십시오.</summary>
- 
+  <summary>각 컬랙션을 만들때 사용된 설정값과 인덱스 설정을 확인하려면 클릭해 주십시오.</summary>
 
-  `admin` 테이블을 만들기 위한 SQL 쿼리
-  ``` SQL
-  CREATE TABLE admin (
-    username VARCHAR(12) NOT NULL PRIMARY KEY,
-    password CHAR(88) NOT NULL,
-    name VARCHAR(255) NOT NULL,
-    membersince TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-  ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  `admin` 컬랙션의 속성
+  ``` JSON
+  {
+    id: 'admin',
+    indexingPolicy: {
+      indexingMode: 'consistent',
+      automatic: true,
+      includedPaths: [{path: '/session/token/?'}],
+      excludedPaths: [{path: '/*'}, {path: '/"_etag"/?'}],
+    },
+  }
   ```
 
-  `admin_session` 테이블을 만들기 위한 SQL 쿼리
-  ``` SQL
-  CREATE TABLE admin_session (
-    username VARCHAR(12) NOT NULL UNIQUE,
-    FOREIGN KEY (username) REFERENCES admin(username) ON DELETE CASCADE ON UPDATE CASCADE,
-    INDEX index_username(username),
-    token VARCHAR(255) NOT NULL PRIMARY KEY,
-    expires TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  `event` 컬랙션의 속성
+  ``` JSON
+  {
+    id: 'event',
+    indexingPolicy: {
+      indexingMode: 'consistent',
+      automatic: true,
+      includedPaths: [{path: '/date/?'}],
+      excludedPaths: [{path: '/*'}, {path: '/"_etag"/?'}],
+    },
+  }
   ```
 
-  `event` 테이블을 만들기 위한 SQL 쿼리
-  ``` SQL
-  CREATE TABLE event (
-    id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    INDEX index_date(date),
-    name VARCHAR(255) NOT NULL,
-    detail MEDIUMTEXT NULL DEFAULT NULL,
-    category VARCHAR(255) NULL DEFAULT NULL,
-    editor VARCHAR(12) NOT NULL,
-    FOREIGN KEY (editor) REFERENCES admin(username) ON DELETE CASCADE ON UPDATE CASCADE
-  ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-  ```
-
-  `participation` 테이블을 만들기 위한 SQL 쿼리
-  ``` SQL
-  CREATE TABLE participation (
-    id INT(11) NOT NULL AUTO_INCREMENT PRIMARY KEY,
-    event_id INT(11) NOT NULL,
-    FOREIGN KEY (event_id) REFERENCES event(id) ON DELETE CASCADE ON UPDATE CASCADE,
-    INDEX index_event_id(event_id),
-    date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    participant_name VARCHAR(255) NOT NULL,
-    INDEX index_participant_name(participant_name),
-    phone_number VARCHAR(20) NULL DEFAULT NULL,
-    email VARCHAR(255) NOT NULL,
-    INDEX index_email(email),
-    comment TEXT NULL DEFAULT NULL
-  ) CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  `participation` 컬랙션의 속성
+  ``` JSON
+  {
+    id: 'participation',
+    partitionKey: {paths: ['/eventId']},
+    uniqueKeyPolicy: {
+      uniqueKeys: [{paths: ['/eventId', '/participantName', '/email']}],
+    },
+    indexingPolicy: {
+      indexingMode: 'consistent',
+      automatic: true,
+      includedPaths: [
+        {path: '/eventId/?'},
+        {path: '/participantName/?'},
+        {path: '/email/?'},
+      ],
+      excludedPaths: [{path: '/*'}, {path: '/"_etag"/?'}],
+    },
+  }
   ```
 </details>
 

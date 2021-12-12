@@ -25,8 +25,19 @@ if (process.argv.length !== 5) {
   // eslint-disable-next-line no-process-exit
   process.exit(1);
 }
-// Parse username, password, and name / Call newAdmin()
-const config = new ServerConfig();
+
+if (!process.env.DB_ENDPOINT || !process.env.DB_KEY || !process.env.DB_ID) {
+  console.log('NEED DB_ENDPOINT, DB_KEY AND DB_ID ENV VARIABLE');
+  // eslint-disable-next-line no-process-exit
+  process.exit(1);
+}
+
+// Parse username and Call deleteAdmin()
+const config = new ServerConfig(
+  process.env.DB_ENDPOINT,
+  process.env.DB_KEY,
+  process.env.DB_ID
+);
 newAdmin(
   process.argv[2],
   process.argv[3],
@@ -35,21 +46,10 @@ newAdmin(
   config
 ).then(
   // DB Operation Success
-  value => {
-    if (value.affectedRows !== 1) {
-      console.error(
-        String.prototype.concat(
-          'No affectedRows!!\n\n',
-          'Check query result manually!!'
-        )
-      );
-      // eslint-disable-next-line no-process-exit
-      process.exit(1);
-    } else {
-      console.log('Successfully add new admin account');
-      // eslint-disable-next-line no-process-exit
-      process.exit();
-    }
+  () => {
+    console.log('Successfully add new admin account');
+    // eslint-disable-next-line no-process-exit
+    process.exit();
   },
   // When DB Operation failed
   error => {

@@ -5,38 +5,25 @@
  * @author Hyecheol (Jerry) Jang <hyecheol123@gmail.com>
  */
 
-import * as mariadb from 'mariadb';
+import * as Cosmos from '@azure/cosmos';
 import ServerConfigTemplate from '../../ServerConfigTemplate';
 import Admin from '../../datatypes/authentication/Admin';
 
 /**
  * Function to delete existing admin account
  *
- * @param username username of delete target
+ * @param id username of delete target
  * @param config instance of ServerConfigTemplate, containing DB connection information
+ * @return Promise<Cosmos.ItemResponse<Admin>> DB operation result
  */
 export default async function deleteAdmin(
-  username: string,
+  id: string,
   config: ServerConfigTemplate
-): Promise<mariadb.UpsertResult> {
+): Promise<Cosmos.ItemResponse<Admin>> {
   // Create new admin entry on database
-  const dbClient = mariadb.createPool({
-    host: config.db.url,
-    port: config.db.port,
-    user: config.db.username,
-    password: config.db.password,
-    database: config.db.defaultDatabase,
-    compress: true,
-  });
-  let result;
-  try {
-    // Delete of admin record automatically deletes admin_session information
-    // ON DELETE CASCADE
-    result = await Admin.delete(dbClient, username);
-    await dbClient.end();
-  } catch (e) {
-    await dbClient.end();
-    throw e;
-  }
-  return result;
+  const dbClient = new Cosmos.CosmosClient({
+    endpoint: config.db.endpoint,
+    key: config.db.key,
+  }).database(config.db.databaseId);
+  return await Admin.delete(dbClient, id);
 }

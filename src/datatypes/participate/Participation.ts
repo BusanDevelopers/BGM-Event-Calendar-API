@@ -4,212 +4,257 @@
  * @author Hyecheol (Jerry) Jang <hyecheol123@gmail.com>
  */
 
-import * as mariadb from 'mariadb';
+import * as Cosmos from '@azure/cosmos';
 import NotFoundError from '../../exceptions/NotFoundError';
+import BadRequestError from '../../exceptions/BadRequestError';
+import ServerConfig from '../../ServerConfig';
+
+// DB Container id
+const PARTICIPATION = 'participation';
 
 /**
- * Interface to define participation entry in DB
+ * Interface for ParticipationEditInfoDB
  */
-interface ParticipationDB {
-  id: number;
-  event_id: number;
-  date: string;
-  participant_name: string;
-  phone_number: string | null;
-  email: string;
-  comment: string | null;
+export interface ParticipationEditInfoDB {
+  participantName?: string | undefined; // Name of participant
+  email?: string | undefined; // email is required
+  phoneNumber?: string | undefined; // Optional field for phone number
+  comment?: string | undefined; // additional comment
 }
 
+/**
+ * Class for Participation
+ */
 export default class Participation {
-  id: number | null; // Participation ticket ID
-  eventId: number; // associated Event ID
-  date: Date; // When the ticket created
+  id: string | undefined; // Participation ticket ID
+  eventId: string; // associated Event ID
   participantName: string; // Name of participant
-  phoneNumber: string | null; // Optional field for phone number
   email: string; // email is required
-  comment: string | null; // additional comment
+  phoneNumber: string | undefined; // Optional field for phone number
+  comment: string | undefined; // additional comment
+  createdAt: Date | string;
 
+  /**
+   * Constructor for Participation Object
+   *
+   * @param eventId eventID which participation links to
+   * @param createdAt Participation Created Date
+   * @param participantName name of participant
+   * @param email email of participant
+   * @param phoneNumber optional field for phone number of participant
+   * @param comment optional field to write down additional comment
+   * @param id participation ticket id (From DB)
+   */
   constructor(
-    eventId: number,
-    date: Date,
+    eventId: string,
+    createdAt: Date,
     participantName: string,
     email: string,
-    phoneNumber?: string | null,
-    comment?: string | null,
-    id?: number
+    phoneNumber?: string,
+    comment?: string,
+    id?: string
   ) {
     this.eventId = eventId;
-    this.date = date;
+    this.createdAt = createdAt;
     this.participantName = participantName;
     this.email = email;
-    this.phoneNumber = phoneNumber ? phoneNumber : null;
-    this.comment = comment ? comment : null;
-    this.id = id ? id : null;
+    this.phoneNumber = phoneNumber;
+    this.comment = comment;
+    this.id = id;
   }
 
   /**
-   * Create new entry in participate table
+   * Create new entry in participate container
    *
-   * @param dbClient DB Connection Pool (MariaDB)
+   * @param dbClient DB Client (Cosmos Database)
    * @param participation Participation Information
-   * @return {Promise<mariadb.UpsertResult>} db operation result
+   * @return {Promise<Cosmos.ItemResponse<Participation>>} db operation result
    */
   static async create(
-    dbClient: mariadb.Pool,
+    dbClient: Cosmos.Database,
     participation: Participation
-  ): Promise<mariadb.UpsertResult> {
-    const {eventId, date, participantName, phoneNumber, email, comment} =
-      participation;
-    return await dbClient.query(
-      String.prototype.concat(
-        'INSERT INTO participation ',
-        '(event_id, date, participant_name, phone_number, email, comment) ',
-        'VALUES (?, ?, ?, ?, ?, ?)'
-      ),
-      [eventId, date, participantName, phoneNumber, email, comment]
+  ): Promise<Cosmos.ItemResponse<Participation>> {
+    // Generate createdAt string
+    participation.createdAt = (participation.createdAt as Date).toISOString();
+    // Generate id
+    participation.id = ServerConfig.hash(
+      PARTICIPATION,
+      participation.eventId,
+      participation.eventId +
+        participation.createdAt +
+        participation.participantName +
+        participation.email
     );
+
+    const dbOps = await dbClient
+      .container(PARTICIPATION)
+      .items.create<Participation>(participation);
+    // Check for error
+    if (dbOps.statusCode === 409) {
+      throw new BadRequestError();
+    }
+    /* istanbul ignore next */
+    if (dbOps.statusCode >= 400) {
+      throw new Error(JSON.stringify(dbOps));
+    }
+
+    return dbOps;
   }
 
   /**
    * Retrieve participation tickets associated with specific event
    *
-   * @param dbClient DB Connection Pool (MariaDB)
+   * @param dbClient DB Client (Cosmos Database)
    * @param eventId unique id referring the event
-   * @return {Promise<Array<Participation>>} return array of Participations
+   * @return {Promise<Array<Participation>>} return array of Participation
    */
   static async readByEventId(
-    dbClient: mariadb.Pool,
-    eventId: number
+    dbClient: Cosmos.Database,
+    eventId: string
   ): Promise<Array<Participation>> {
     // Query
-    const queryResult = await dbClient.query(
-      'SELECT * FROM participation WHERE event_id = ?',
-      [eventId]
-    );
+    const dbOps = await dbClient
+      .container(PARTICIPATION)
+      .items.query<Participation>({
+        query: 'SELECT * FROM participation AS p WHERE p.eventId = @eventId',
+        parameters: [{name: '@eventId', value: eventId}],
+      })
+      .fetchAll();
 
-    return queryResult.map((qr: ParticipationDB) => {
-      return new Participation(
-        qr.event_id,
-        new Date(qr.date),
-        qr.participant_name,
-        qr.email,
-        qr.phone_number,
-        qr.comment,
-        qr.id
-      );
+    return dbOps.resources.map((op: Participation) => {
+      // Generate createdAt
+      op.createdAt = new Date(op.createdAt);
+      return op;
     });
   }
 
   /**
    * Retrieve participation associated with the eventID and ticketID
    *
-   * @param dbClient DB Connection Pool
+   * @param dbClient DB Client (Cosmos Database)
    * @param eventId event ID associated with the participation
    * @param participationId unique participation ID
    * @return {Promise<Participation>} return Participation
    */
   static async readByEventIdTicketId(
-    dbClient: mariadb.Pool,
-    eventId: number,
-    participationId: number
+    dbClient: Cosmos.Database,
+    eventId: string,
+    participationId: string
   ): Promise<Participation> {
-    const queryResult = await dbClient.query(
-      'SELECT * FROM participation WHERE event_id = ? AND id = ?',
-      [eventId, participationId]
-    );
-    if (queryResult.length === 0) {
+    // Query
+    const dbOps = await dbClient
+      .container(PARTICIPATION)
+      .item(participationId, eventId)
+      .read<Participation>();
+
+    if (dbOps.statusCode === 404) {
       throw new NotFoundError();
     }
-
-    const {id, event_id, date, participant_name} = queryResult[0];
-    const {phone_number, email, comment} = queryResult[0];
-    return new Participation(
-      event_id,
-      new Date(date),
-      participant_name,
-      email,
-      phone_number,
-      comment,
-      id
-    );
-  }
-
-  /**
-   * Check existence of an entry in participate table
-   *   using eventId, name, and email
-   *
-   * @param dbClient DB Connection Pool (MariaDB)
-   * @param eventId unique id referring the event
-   * @param name participant's name
-   * @param email participant's email
-   * @return {Promise<boolean>} true if exist, false if not exist
-   */
-  static async existByEventIdNameEmail(
-    dbClient: mariadb.Pool,
-    eventId: number,
-    name: string,
-    email: string
-  ): Promise<boolean> {
-    // DB Query
-    const queryResult = await dbClient.query(
-      String.prototype.concat(
-        'SELECT EXISTS(',
-        'SELECT * FROM participation ',
-        'WHERE event_id = ? AND participant_name = ? AND email = ?)'
-      ),
-      [eventId, name, email]
-    );
-    return !!queryResult[0][Object.keys(queryResult[0])[0]];
+    const participation = dbOps.resource as Participation;
+    participation.createdAt = new Date(participation.createdAt);
+    return participation;
   }
 
   /**
    * Update an existing participation
    *
-   * @param dbClient DB Connection Pool
+   * @param dbClient DB Client (Cosmos Database)
    * @param eventId event id associated with the participation
    * @param participationId unique participation ID
-   * @param participation Participation Information
-   * @return {Promise<mariadb.UpsertResult>} DB Operation Result
+   * @param participationEditInfo Participation edit Information
+   * @return {Promise<Cosmos.ItemResponse<Participation>>} DB Operation Result
    */
   static async update(
-    dbClient: mariadb.Pool,
-    eventId: number,
-    participationId: number,
-    participation: Participation
-  ): Promise<mariadb.UpsertResult> {
-    const {participantName, email, phoneNumber, comment} = participation;
-    const queryResult = await dbClient.query(
-      'UPDATE participation SET participant_name = ?, email = ?, phone_number = ?, comment = ? WHERE event_id = ? AND id = ?',
-      [participantName, email, phoneNumber, comment, eventId, participationId]
+    dbClient: Cosmos.Database,
+    eventId: string,
+    participationId: string,
+    participationEditInfo: ParticipationEditInfoDB
+  ): Promise<Cosmos.ItemResponse<Participation>> {
+    // Generate participation document
+    const participation = await Participation.readByEventIdTicketId(
+      dbClient,
+      eventId,
+      participationId
     );
+    participation.createdAt = (participation.createdAt as Date).toString();
+    participation.participantName = participationEditInfo.participantName
+      ? participationEditInfo.participantName
+      : participation.participantName;
+    participation.email = participationEditInfo.email
+      ? participationEditInfo.email
+      : participation.email;
+    participation.phoneNumber = participationEditInfo.phoneNumber
+      ? participationEditInfo.phoneNumber
+      : participation.phoneNumber;
+    participation.comment = participationEditInfo.comment
+      ? participationEditInfo.comment
+      : participation.comment;
 
-    /* istanbul ignore next */
-    if (queryResult.affectedRows === 0) {
-      throw new NotFoundError();
-    }
-    return queryResult;
+    // Update participation
+    return await dbClient
+      .container(PARTICIPATION)
+      .item(participationId, eventId)
+      .replace<Participation>(participation);
   }
 
   /**
    * Delete an existing participation from database
    *
-   * @param dbClient DB Connection Pool
+   * @param dbClient DB Client (Cosmos Database)
    * @param eventId event ID for the event associated with the participation
    * @param participationId unique participation ID for the delete target
-   * @return {Promise<mariadb.UpsertResult>} db operation result
+   * @return {Promise<Cosmos.ItemResponse<Participation>>} db operation result
    */
   static async delete(
-    dbClient: mariadb.Pool,
-    eventId: number,
-    participationId: number
-  ): Promise<mariadb.UpsertResult> {
-    const queryResult = await dbClient.query(
-      'DELETE FROM participation WHERE id = ? AND event_id = ?',
-      [participationId, eventId]
-    );
-    if (queryResult.affectedRows === 0) {
-      throw new NotFoundError();
+    dbClient: Cosmos.Database,
+    eventId: string,
+    participationId: string
+  ): Promise<Cosmos.ItemResponse<Participation>> {
+    let dbOps;
+    try {
+      dbOps = await dbClient
+        .container(PARTICIPATION)
+        .item(participationId, eventId)
+        .delete<Participation>();
+    } catch (e) {
+      /* istanbul ignore else */
+      if ((e as Cosmos.ErrorResponse).code === 404) {
+        throw new NotFoundError();
+      } else {
+        throw e;
+      }
     }
-    return queryResult;
+
+    return dbOps;
+  }
+
+  /**
+   * Function to delete participation associated with given eventId
+   *
+   * @param dbClient DB Client (Cosmos Database)
+   * @param eventId event ID for the event associated with the participation
+   * @return {Promise<Cosmos.ItemResponse<Participation>[]>} db operation result
+   */
+  static async deleteByEventId(
+    dbClient: Cosmos.Database,
+    eventId: string
+  ): Promise<Cosmos.ItemResponse<Participation>[]> {
+    // Retrieve list of documents with given eventId
+    const dbOps = await dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT p.id FROM participation AS p WHERE p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+
+    // Delete all partition
+    const returnOps = [];
+    for (let index = 0; index < dbOps.resources.length; ++index) {
+      returnOps.push(
+        await Participation.delete(dbClient, eventId, dbOps.resources[index].id)
+      );
+    }
+
+    return returnOps;
   }
 }

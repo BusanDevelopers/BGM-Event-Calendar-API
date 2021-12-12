@@ -19,11 +19,9 @@ export interface ConfigObj {
  * This type of object should be contained in the ConfigObj
  */
 export interface DbObj {
-  url: string; // URL indicating the location of database server
-  port: number; // Port number to access database server
-  username: string;
-  password: string;
-  defaultDatabase: string; // default database name
+  endpoint: string; // URL indicating the location of database server and port
+  key: string;
+  databaseId: string; // default database name
 }
 
 /**

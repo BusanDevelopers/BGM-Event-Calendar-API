@@ -6,14 +6,20 @@
 
 // eslint-disable-next-line node/no-unpublished-import
 import * as request from 'supertest';
+import * as Cosmos from '@azure/cosmos';
 import TestEnv from '../../TestEnv';
+import ExpressServer from '../../../src/ExpressServer';
 
 describe('PUT /event/{eventID}/participate/{ticketID} - Edit an existing participation ticket', () => {
   let testEnv: TestEnv;
   let accessToken: string;
 
   // Information that used during the test
-  const loginCredentials = {username: 'testuser1', password: 'Password13!'};
+  const loginCredentials = {id: 'testuser1', password: 'Password13!'};
+
+  // DB Container ID
+  const EVENT = 'event';
+  const PARTICIPATION = 'participation';
 
   beforeAll(() => {
     jest.setTimeout(120000);
@@ -25,6 +31,9 @@ describe('PUT /event/{eventID}/participate/{ticketID} - Edit an existing partici
 
     // Start Test Environment
     await testEnv.start();
+
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
 
     // Login
     const response = await request(testEnv.expressServer.app)
@@ -39,97 +48,194 @@ describe('PUT /event/{eventID}/participate/{ticketID} - Edit an existing partici
   });
 
   test('Success - Edit participant name', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID and participation ID
+    let dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT e.id FROM event AS e WHERE e.name = "할로윈 파티"')
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+    dbOps = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT p.id FROM participation AS p WHERE p.participantName = "김영희" AND p.email = "yhkim@gmail.com" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    const participationId = dbOps.resources[0].id;
+
     // Update an participation
     const response = await request(testEnv.expressServer.app)
-      .put('/event/1/participate/1')
+      .put(`/event/${eventId}/participate/${participationId}`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
       .send({participantName: '김철수'});
     expect(response.status).toBe(200);
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM participation WHERE id = 1 AND event_id = 1'
-    );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].date).toISOString()).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT * FROM participation AS p WHERE p.id = "${participationId}" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(new Date(queryResult.resources[0].createdAt).toISOString()).toBe(
       new Date('2021-08-17').toISOString()
     );
-    expect(queryResult[0].participant_name).toBe('김철수');
-    expect(queryResult[0].phone_number).toBeNull();
-    expect(queryResult[0].email).toBe('yhkim@gmail.com');
-    expect(queryResult[0].comment).toBeNull();
+    expect(queryResult.resources[0].participantName).toBe('김철수');
+    expect(queryResult.resources[0].phoneNumber).toBeUndefined();
+    expect(queryResult.resources[0].email).toBe('yhkim@gmail.com');
+    expect(queryResult.resources[0].comment).toBeUndefined();
   });
 
   test('Success - Edit phone number', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID and participation ID
+    let dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT e.id FROM event AS e WHERE e.name = "할로윈 파티"')
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+    dbOps = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT p.id FROM participation AS p WHERE p.participantName = "김영희" AND p.email = "yhkim@gmail.com" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    const participationId = dbOps.resources[0].id;
+
     // Update an participation
     const response = await request(testEnv.expressServer.app)
-      .put('/event/1/participate/1')
+      .put(`/event/${eventId}/participate/${participationId}`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
       .send({phoneNumber: '01012345678'});
     expect(response.status).toBe(200);
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM participation WHERE id = 1 AND event_id = 1'
-    );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].date).toISOString()).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT * FROM participation AS p WHERE p.id = "${participationId}" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(new Date(queryResult.resources[0].createdAt).toISOString()).toBe(
       new Date('2021-08-17').toISOString()
     );
-    expect(queryResult[0].participant_name).toBe('김영희');
-    expect(queryResult[0].phone_number).toBe('01012345678');
-    expect(queryResult[0].email).toBe('yhkim@gmail.com');
-    expect(queryResult[0].comment).toBeNull();
+    expect(queryResult.resources[0].participantName).toBe('김영희');
+    expect(queryResult.resources[0].phoneNumber).toBe('01012345678');
+    expect(queryResult.resources[0].email).toBe('yhkim@gmail.com');
+    expect(queryResult.resources[0].comment).toBeUndefined();
   });
 
   test('Success - Edit email', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID and participation ID
+    let dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT e.id FROM event AS e WHERE e.name = "할로윈 파티"')
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+    dbOps = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT p.id FROM participation AS p WHERE p.participantName = "김영희" AND p.email = "yhkim@gmail.com" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    const participationId = dbOps.resources[0].id;
+
     // Update an participation
     const response = await request(testEnv.expressServer.app)
-      .put('/event/1/participate/1')
+      .put(`/event/${eventId}/participate/${participationId}`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
       .send({email: 'yhkim02@gmail.com'});
     expect(response.status).toBe(200);
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM participation WHERE id = 1 AND event_id = 1'
-    );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].date).toISOString()).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT * FROM participation AS p WHERE p.id = "${participationId}" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(new Date(queryResult.resources[0].createdAt).toISOString()).toBe(
       new Date('2021-08-17').toISOString()
     );
-    expect(queryResult[0].participant_name).toBe('김영희');
-    expect(queryResult[0].phone_number).toBeNull();
-    expect(queryResult[0].email).toBe('yhkim02@gmail.com');
-    expect(queryResult[0].comment).toBeNull();
+    expect(queryResult.resources[0].participantName).toBe('김영희');
+    expect(queryResult.resources[0].phoneNumber).toBeUndefined();
+    expect(queryResult.resources[0].email).toBe('yhkim02@gmail.com');
+    expect(queryResult.resources[0].comment).toBeUndefined();
   });
 
   test('Success - Edit comment', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID and participation ID
+    let dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT e.id FROM event AS e WHERE e.name = "할로윈 파티"')
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+    dbOps = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT p.id FROM participation AS p WHERE p.participantName = "김영희" AND p.email = "yhkim@gmail.com" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    const participationId = dbOps.resources[0].id;
+
     // Update an participation
     const response = await request(testEnv.expressServer.app)
-      .put('/event/1/participate/1')
+      .put(`/event/${eventId}/participate/${participationId}`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
       .send({comment: '1명 추가 신청합니다.'});
     expect(response.status).toBe(200);
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM participation WHERE id = 1 AND event_id = 1'
-    );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].date).toISOString()).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT * FROM participation AS p WHERE p.id = "${participationId}" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(new Date(queryResult.resources[0].createdAt).toISOString()).toBe(
       new Date('2021-08-17').toISOString()
     );
-    expect(queryResult[0].participant_name).toBe('김영희');
-    expect(queryResult[0].phone_number).toBeNull();
-    expect(queryResult[0].email).toBe('yhkim@gmail.com');
-    expect(queryResult[0].comment).toBe('1명 추가 신청합니다.');
+    expect(queryResult.resources[0].participantName).toBe('김영희');
+    expect(queryResult.resources[0].phoneNumber).toBeUndefined();
+    expect(queryResult.resources[0].email).toBe('yhkim@gmail.com');
+    expect(queryResult.resources[0].comment).toBe('1명 추가 신청합니다.');
   });
 
   test('Success - Edit numerous properties', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID and participation ID
+    let dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT e.id FROM event AS e WHERE e.name = "할로윈 파티"')
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+    dbOps = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT p.id FROM participation AS p WHERE p.participantName = "김영희" AND p.email = "yhkim@gmail.com" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    const participationId = dbOps.resources[0].id;
+
     // Update an participation
     const response = await request(testEnv.expressServer.app)
-      .put('/event/1/participate/1')
+      .put(`/event/${eventId}/participate/${participationId}`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
       .send({
         comment: '1명 추가 신청합니다.',
@@ -139,92 +245,172 @@ describe('PUT /event/{eventID}/participate/{ticketID} - Edit an existing partici
     expect(response.status).toBe(200);
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM participation WHERE id = 1 AND event_id = 1'
-    );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].date).toISOString()).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT * FROM participation AS p WHERE p.id = "${participationId}" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(new Date(queryResult.resources[0].createdAt).toISOString()).toBe(
       new Date('2021-08-17').toISOString()
     );
-    expect(queryResult[0].participant_name).toBe('김영희');
-    expect(queryResult[0].phone_number).toBe('01012345678');
-    expect(queryResult[0].email).toBe('yhkim02@gmail.com');
-    expect(queryResult[0].comment).toBe('1명 추가 신청합니다.');
+    expect(queryResult.resources[0].participantName).toBe('김영희');
+    expect(queryResult.resources[0].phoneNumber).toBe('01012345678');
+    expect(queryResult.resources[0].email).toBe('yhkim02@gmail.com');
+    expect(queryResult.resources[0].comment).toBe('1명 추가 신청합니다.');
   });
 
   test('Fail - Invalid phone number format', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID and participation ID
+    let dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT e.id FROM event AS e WHERE e.name = "할로윈 파티"')
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+    dbOps = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT p.id FROM participation AS p WHERE p.participantName = "김영희" AND p.email = "yhkim@gmail.com" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    const participationId = dbOps.resources[0].id;
+
     // Update an participation
     const response = await request(testEnv.expressServer.app)
-      .put('/event/1/participate/1')
+      .put(`/event/${eventId}/participate/${participationId}`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
       .send({phoneNumber: '010-1234-5678'});
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Bad Request');
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM participation WHERE id = 1 AND event_id = 1'
-    );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].date).toISOString()).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT * FROM participation AS p WHERE p.id = "${participationId}" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(new Date(queryResult.resources[0].createdAt).toISOString()).toBe(
       new Date('2021-08-17').toISOString()
     );
-    expect(queryResult[0].participant_name).toBe('김영희');
-    expect(queryResult[0].phone_number).toBeNull();
-    expect(queryResult[0].email).toBe('yhkim@gmail.com');
-    expect(queryResult[0].comment).toBeNull();
+    expect(queryResult.resources[0].participantName).toBe('김영희');
+    expect(queryResult.resources[0].phoneNumber).toBeUndefined();
+    expect(queryResult.resources[0].email).toBe('yhkim@gmail.com');
+    expect(queryResult.resources[0].comment).toBeUndefined();
   });
 
   test('Fail - Invalid email format', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID and participation ID
+    let dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT e.id FROM event AS e WHERE e.name = "할로윈 파티"')
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+    dbOps = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT p.id FROM participation AS p WHERE p.participantName = "김영희" AND p.email = "yhkim@gmail.com" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    const participationId = dbOps.resources[0].id;
+
     // Update an participation
     const response = await request(testEnv.expressServer.app)
-      .put('/event/1/participate/1')
+      .put(`/event/${eventId}/participate/${participationId}`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
       .send({email: 'yhkim02@gmail'});
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Bad Request');
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM participation WHERE id = 1 AND event_id = 1'
-    );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].date).toISOString()).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT * FROM participation AS p WHERE p.id = "${participationId}" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(new Date(queryResult.resources[0].createdAt).toISOString()).toBe(
       new Date('2021-08-17').toISOString()
     );
-    expect(queryResult[0].participant_name).toBe('김영희');
-    expect(queryResult[0].phone_number).toBeNull();
-    expect(queryResult[0].email).toBe('yhkim@gmail.com');
-    expect(queryResult[0].comment).toBeNull();
+    expect(queryResult.resources[0].participantName).toBe('김영희');
+    expect(queryResult.resources[0].phoneNumber).toBeUndefined();
+    expect(queryResult.resources[0].email).toBe('yhkim@gmail.com');
+    expect(queryResult.resources[0].comment).toBeUndefined();
   });
 
   test('Fail - Additional field', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID and participation ID
+    let dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT e.id FROM event AS e WHERE e.name = "할로윈 파티"')
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+    dbOps = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT p.id FROM participation AS p WHERE p.participantName = "김영희" AND p.email = "yhkim@gmail.com" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    const participationId = dbOps.resources[0].id;
+
     // Update an participation
     const response = await request(testEnv.expressServer.app)
-      .put('/event/1/participate/1')
+      .put(`/event/${eventId}/participate/${participationId}`)
       .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
       .send({email: 'yhkim02@gmail.com', nickname: '영희'});
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Bad Request');
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM participation WHERE id = 1 AND event_id = 1'
-    );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].date).toISOString()).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT * FROM participation AS p WHERE p.id = "${participationId}" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(new Date(queryResult.resources[0].createdAt).toISOString()).toBe(
       new Date('2021-08-17').toISOString()
     );
-    expect(queryResult[0].participant_name).toBe('김영희');
-    expect(queryResult[0].phone_number).toBeNull();
-    expect(queryResult[0].email).toBe('yhkim@gmail.com');
-    expect(queryResult[0].comment).toBeNull();
+    expect(queryResult.resources[0].participantName).toBe('김영희');
+    expect(queryResult.resources[0].phoneNumber).toBeUndefined();
+    expect(queryResult.resources[0].email).toBe('yhkim@gmail.com');
+    expect(queryResult.resources[0].comment).toBeUndefined();
   });
 
   test('Fail - Unauthorized', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // Retrieve event ID and participation ID
+    let dbOps = await testEnv.dbClient
+      .container(EVENT)
+      .items.query('SELECT e.id FROM event AS e WHERE e.name = "할로윈 파티"')
+      .fetchAll();
+    const eventId = dbOps.resources[0].id;
+    dbOps = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT p.id FROM participation AS p WHERE p.participantName = "김영희" AND p.email = "yhkim@gmail.com" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    const participationId = dbOps.resources[0].id;
+
     // Update an participation
     const response = await request(testEnv.expressServer.app)
-      .put('/event/1/participate/1')
+      .put(`/event/${eventId}/participate/${participationId}`)
       .send({phoneNumber: '01012345678'});
     expect(response.status).toBe(401);
     expect(response.body.error).toBe(
@@ -232,46 +418,26 @@ describe('PUT /event/{eventID}/participate/{ticketID} - Edit an existing partici
     );
 
     // DB Check
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM participation WHERE id = 1 AND event_id = 1'
-    );
-    expect(queryResult.length).toBe(1);
-    expect(new Date(queryResult[0].date).toISOString()).toBe(
+    const queryResult = await testEnv.dbClient
+      .container(PARTICIPATION)
+      .items.query(
+        `SELECT * FROM participation AS p WHERE p.id = "${participationId}" AND p.eventId = "${eventId}"`
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(new Date(queryResult.resources[0].createdAt).toISOString()).toBe(
       new Date('2021-08-17').toISOString()
     );
-    expect(queryResult[0].participant_name).toBe('김영희');
-    expect(queryResult[0].phone_number).toBeNull();
-    expect(queryResult[0].email).toBe('yhkim@gmail.com');
-    expect(queryResult[0].comment).toBeNull();
-  });
-
-  test('Fail - Invalid eventID (non-numeric / < 1)', async () => {
-    // Non-numeric eventID
-    let response = await request(testEnv.expressServer.app)
-      .put('/event/halloween/participate/1')
-      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
-      .send({participantName: '김철수'});
-    expect(response.status).toBe(404);
-    expect(response.body.error).toBe('Not Found');
-
-    // eventID = 0
-    response = await request(testEnv.expressServer.app)
-      .put('/event/0/participate/1')
-      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
-      .send({participantName: '김철수'});
-    expect(response.status).toBe(404);
-    expect(response.body.error).toBe('Not Found');
-
-    // eventID = -1
-    response = await request(testEnv.expressServer.app)
-      .put('/event/-1/participate/1')
-      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
-      .send({participantName: '김철수'});
-    expect(response.status).toBe(404);
-    expect(response.body.error).toBe('Not Found');
+    expect(queryResult.resources[0].participantName).toBe('김영희');
+    expect(queryResult.resources[0].phoneNumber).toBeUndefined();
+    expect(queryResult.resources[0].email).toBe('yhkim@gmail.com');
+    expect(queryResult.resources[0].comment).toBeUndefined();
   });
 
   test('Fail - eventID Not found', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Event Not Exist
     const response = await request(testEnv.expressServer.app)
       .put('/event/100/participate/1')
@@ -281,33 +447,10 @@ describe('PUT /event/{eventID}/participate/{ticketID} - Edit an existing partici
     expect(response.body.error).toBe('Not Found');
   });
 
-  test('Fail - Invalid ticketID (non-numeric / < 1)', async () => {
-    // Non-numeric ticketID
-    let response = await request(testEnv.expressServer.app)
-      .put('/event/1/participate/yh')
-      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
-      .send({participantName: '김철수'});
-    expect(response.status).toBe(404);
-    expect(response.body.error).toBe('Not Found');
-
-    // ticketID = 0
-    response = await request(testEnv.expressServer.app)
-      .put('/event/1/participate/0')
-      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
-      .send({participantName: '김철수'});
-    expect(response.status).toBe(404);
-    expect(response.body.error).toBe('Not Found');
-
-    // ticketID = -1
-    response = await request(testEnv.expressServer.app)
-      .put('/event/1/participate/-1')
-      .set('Cookie', [`X-ACCESS-TOKEN=${accessToken}`])
-      .send({participantName: '김철수'});
-    expect(response.status).toBe(404);
-    expect(response.body.error).toBe('Not Found');
-  });
-
   test('Fail - ticketID Not found', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Event Not Exist
     const response = await request(testEnv.expressServer.app)
       .put('/event/1/participate/100')

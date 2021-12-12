@@ -7,12 +7,17 @@
 // eslint-disable-next-line node/no-unpublished-import
 import * as request from 'supertest';
 import * as jwt from 'jsonwebtoken';
+import * as Cosmos from '@azure/cosmos';
 import TestEnv from '../../TestEnv';
+import ExpressServer from '../../../src/ExpressServer';
 import AuthToken from '../../../src/datatypes/authentication/AuthToken';
 import deleteAdmin from '../../../src/functions/utils/deleteAdmin';
 
 describe('POST /auth/login - login', () => {
   let testEnv: TestEnv;
+
+  // DB Container ID
+  const ADMIN = 'admin';
 
   beforeAll(() => {
     jest.setTimeout(120000);
@@ -31,9 +36,12 @@ describe('POST /auth/login - login', () => {
   });
 
   test('Success', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // login request
     const loginCredentials = {
-      username: 'testuser1',
+      id: 'testuser1',
       password: 'Password13!',
     };
     const response = await request(testEnv.expressServer.app)
@@ -51,7 +59,7 @@ describe('POST /auth/login - login', () => {
       testEnv.testConfig.jwt.secretKey,
       jwtOption
     ) as AuthToken; // Check for AccessToken contents
-    expect(tokenPayload.username).toBe('testuser1');
+    expect(tokenPayload.id).toBe('testuser1');
     expect(tokenPayload.type).toBe('access');
     // Parse Refresh Token
     cookie = response.header['set-cookie'][1].split('; ')[0].split('=');
@@ -61,17 +69,19 @@ describe('POST /auth/login - login', () => {
       testEnv.testConfig.jwt.refreshKey,
       jwtOption
     ) as AuthToken; // Check for RefreshToken contents
-    expect(tokenPayload.username).toBe('testuser1');
+    expect(tokenPayload.id).toBe('testuser1');
     expect(tokenPayload.type).toBe('refresh');
 
     // Check database
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser1'
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(cookie[1]);
-    const sessionExpires = new Date(queryResult[0].expires);
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        'SELECT a.id, a.session.token, a.session.expiresAt FROM admin AS a WHERE a.id = "testuser1" AND a.session != null'
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].token).toBe(cookie[1]);
+    const sessionExpires = new Date(queryResult.resources[0].expiresAt);
     const expectedExpires = new Date();
     expect(sessionExpires > expectedExpires).toBe(true);
     expectedExpires.setMinutes(expectedExpires.getMinutes() + 121);
@@ -79,9 +89,12 @@ describe('POST /auth/login - login', () => {
   });
 
   test('Success - Login twice', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // login request
     const loginCredentials = {
-      username: 'testuser1',
+      id: 'testuser1',
       password: 'Password13!',
     };
     let response = await request(testEnv.expressServer.app)
@@ -104,7 +117,7 @@ describe('POST /auth/login - login', () => {
       testEnv.testConfig.jwt.secretKey,
       jwtOption
     ) as AuthToken; // Check for AccessToken contents
-    expect(tokenPayload.username).toBe('testuser1');
+    expect(tokenPayload.id).toBe('testuser1');
     expect(tokenPayload.type).toBe('access');
     // Parse Refresh Token
     cookie = response.header['set-cookie'][1].split('; ')[0].split('=');
@@ -114,17 +127,19 @@ describe('POST /auth/login - login', () => {
       testEnv.testConfig.jwt.refreshKey,
       jwtOption
     ) as AuthToken; // Check for RefreshToken contents
-    expect(tokenPayload.username).toBe('testuser1');
+    expect(tokenPayload.id).toBe('testuser1');
     expect(tokenPayload.type).toBe('refresh');
 
     // Check database
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser1'
-    );
-    expect(queryResult.length).toBe(1);
-    expect(queryResult[0].token).toBe(cookie[1]);
-    const sessionExpires = new Date(queryResult[0].expires);
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        'SELECT a.id, a.session.token, a.session.expiresAt FROM admin AS a WHERE a.id = "testuser1" AND a.session != null'
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(1);
+    expect(queryResult.resources[0].token).toBe(cookie[1]);
+    const sessionExpires = new Date(queryResult.resources[0].expiresAt);
     const expectedExpires = new Date();
     expect(sessionExpires > expectedExpires).toBe(true);
     expectedExpires.setMinutes(expectedExpires.getMinutes() + 121);
@@ -132,10 +147,13 @@ describe('POST /auth/login - login', () => {
   });
 
   test('Fail - Missing Field', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // login request - missing password
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
-      .send({username: 'testuser2'});
+      .send({id: 'testuser2'});
     expect(response.status).toBe(400);
     expect(response.body.error).toBe('Bad Request');
 
@@ -153,17 +171,22 @@ describe('POST /auth/login - login', () => {
     expect(response.header['set-cookie']).toBeUndefined();
 
     // Check database
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser2'
-    );
-    expect(queryResult.length).toBe(0);
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        'SELECT a.id, a.session.token, a.session.expiresAt FROM admin AS a WHERE a.id = "testuser2" AND a.session != null'
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(0);
   });
 
   test('Fail - Additional Field', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // request - Additional Field
     const loginCredentials = {
-      username: 'testuser1',
+      id: 'testuser1',
       password: 'Password13!',
       nickname: 'dummy',
     };
@@ -177,28 +200,33 @@ describe('POST /auth/login - login', () => {
     expect(response.header['set-cookie']).toBeUndefined();
 
     // Check database
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser1'
-    );
-    expect(queryResult.length).toBe(0);
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        'SELECT a.id, a.session.token, a.session.expiresAt FROM admin AS a WHERE a.id = "testuser1" AND a.session != null'
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(0);
   });
 
   test('Fail - Removed User', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Call deleteAdmin function
     const result = await deleteAdmin('testuser1', testEnv.testConfig);
-    expect(result.affectedRows).toBe(1);
+    expect(result.statusCode).toBe(204);
 
     // login request
     const loginCredentials = {
-      username: 'testuser1',
+      id: 'testuser1',
       password: 'Password13!',
     };
     let response = await request(testEnv.expressServer.app)
       .post('/auth/login')
       .send(loginCredentials);
     expect(response.status).toBe(401);
-    loginCredentials.username = 'testuser1_r';
+    loginCredentials.id = 'testuser1';
     response = await request(testEnv.expressServer.app)
       .post('/auth/login')
       .send(loginCredentials);
@@ -206,8 +234,11 @@ describe('POST /auth/login - login', () => {
   });
 
   test('Fail - Not existing user', async () => {
-    // request - Invalid username
-    const usernameTestList = [
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
+    // request - Invalid id
+    const idTestList = [
       'abcdefabcdef1',
       'abcde',
       'abcd@f',
@@ -216,9 +247,9 @@ describe('POST /auth/login - login', () => {
       '123456',
       'adminadminadmin',
     ];
-    for (const username of usernameTestList) {
+    for (const id of idTestList) {
       const loginCredentials = {
-        username: username,
+        id: id,
         password: 'Password13!',
       };
       const response = await request(testEnv.expressServer.app)
@@ -233,16 +264,18 @@ describe('POST /auth/login - login', () => {
       expect(response.header['set-cookie']).toBeUndefined();
 
       // Check database
-      const queryResult = await testEnv.dbClient.query(
-        'SELECT * FROM admin_session WHERE username = ?',
-        username
-      );
-      expect(queryResult.length).toBe(0);
+      const queryResult = await testEnv.dbClient
+        .container(ADMIN)
+        .items.query(
+          `SELECT a.id, a.session.token, a.session.expiresAt FROM admin AS a WHERE a.id = "${id}" AND a.session != null`
+        )
+        .fetchAll();
+      expect(queryResult.resources.length).toBe(0);
     }
 
-    // request - Not-existing username
+    // request - Not-existing id
     const loginCredentials = {
-      username: 'admin2',
+      id: 'admin2',
       password: 'Password13!',
     };
     const response = await request(testEnv.expressServer.app)
@@ -257,14 +290,19 @@ describe('POST /auth/login - login', () => {
     expect(response.header['set-cookie']).toBeUndefined();
 
     // Check database
-    const queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'admin2'
-    );
-    expect(queryResult.length).toBe(0);
+    const queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        'SELECT a.id, a.session.token, a.session.expiresAt FROM admin AS a WHERE a.id = "admin2" AND a.session != null'
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(0);
   });
 
   test('Fail - Password not matching', async () => {
+    testEnv.expressServer = testEnv.expressServer as ExpressServer;
+    testEnv.dbClient = testEnv.dbClient as Cosmos.Database;
+
     // Request - Invalid Password
     const passwordTestList = [
       'passwordPassword',
@@ -283,7 +321,7 @@ describe('POST /auth/login - login', () => {
     ];
     for (const password of passwordTestList) {
       const loginCredentials = {
-        username: 'testuser1',
+        id: 'testuser1',
         password: password,
       };
       const response = await request(testEnv.expressServer.app)
@@ -299,15 +337,17 @@ describe('POST /auth/login - login', () => {
     }
 
     // Check database
-    let queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser1'
-    );
-    expect(queryResult.length).toBe(0);
+    let queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        'SELECT a.id, a.session.token, a.session.expiresAt FROM admin AS a WHERE a.id = "testuser1" AND a.session != null'
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(0);
 
     // request - Incorrect password
     const loginCredentials = {
-      username: 'testuser1',
+      id: 'testuser1',
       password: 'Password12!',
     };
     const response = await request(testEnv.expressServer.app)
@@ -322,10 +362,12 @@ describe('POST /auth/login - login', () => {
     expect(response.header['set-cookie']).toBeUndefined();
 
     // Check database
-    queryResult = await testEnv.dbClient.query(
-      'SELECT * FROM admin_session WHERE username = ?',
-      'testuser1'
-    );
-    expect(queryResult.length).toBe(0);
+    queryResult = await testEnv.dbClient
+      .container(ADMIN)
+      .items.query(
+        'SELECT a.id, a.session.token, a.session.expiresAt FROM admin AS a WHERE a.id = "testuser1" AND a.session != null'
+      )
+      .fetchAll();
+    expect(queryResult.resources.length).toBe(0);
   });
 });

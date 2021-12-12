@@ -8,7 +8,17 @@ import {Server} from 'http';
 import ExpressServer from './ExpressServer';
 import ServerConfig from './ServerConfig';
 
-const configInstance = new ServerConfig(); // Configuration of the server
+// Configuration of the server
+if (!process.env.DB_ENDPOINT || !process.env.DB_KEY || !process.env.DB_ID) {
+  console.log('NEED DB_ENDPOINT, DB_KEY AND DB_ID ENV VARIABLE');
+  // eslint-disable-next-line no-process-exit
+  process.exit(1);
+}
+const configInstance = new ServerConfig(
+  process.env.DB_ENDPOINT,
+  process.env.DB_KEY,
+  process.env.DB_ID
+);
 const expressServer = new ExpressServer(configInstance); // express server setup
 
 // Startup the express server
