@@ -16,8 +16,20 @@
 2. `lint:fix`: 코드 검사 후 자동 수정 시도
 3. `build`: 타입스크립트 코드 컴파일 (destination: `dist` 디렉터리)
 4. `clean`: 컴파일 된 코드 삭제
-5. `start`: 코드 실행 (DB_KEY 환경변수 필요)
+5. `start`: 코드 실행 (DB_ENDPOINT, DB_KEY, DB_ID 환경변수 필요)
 6. `test`: 코드 테스트
+7. `newAdmin`: 새 관리자 계정 등록 (3개의 CLA 필요 - username, password, 사용자이름)
+8. `deleteAdmin`: 관리자 계정 삭제 (1개의 CLA 필요 - username) 
+
+테스트 시, Azure Cosmos DB 환경을 구현해주는 에뮬레이터를 사용합니다.
+에뮬레이터의 설치 및 사용에 관한 자세한 사항은 [이 링크](https://docs.microsoft.com/en-us/azure/cosmos-db/local-emulator?tabs=ssl-netstd21) 를 참고해주세요.  
+리눅스 도커 이미지도 제공되나, 심각한 성능상의 문제로 윈도우에서 에뮬레이터를 실행시키는 것을 권장합니다.
+이 경우, 외부 접근을 위한 별도의 설정이 필요합니다.
+위에서 제공된 링크를 참고하시기 바랍니다.
+
+현재, GitHub Action의 Windows Worker의 경우 Service Container 실행에 제약이 있습니다.
+이에 따라, Azure Cosmos DB Emulator가 GitHub Action Worker에서 정상적으로 실행되지 않습니다.
+이에, 현재 자동 테스트 기능은 비활성화되어있으며, 모든 기능에 대해서 PR 및 머지 전 로컬 환경에서의 테스트 및 코드 검토가 필요합니다.
 
 
 ## Dependencies/Environment
@@ -35,103 +47,53 @@ Data Diagram
 
 <details>
   <summary>각 컬랙션을 만들때 사용된 설정값과 인덱스 설정을 확인하려면 클릭해 주십시오.</summary>
- 
 
-[comment]: <> (  `admin` 테이블을 만들기 위한 SQL 쿼리)
+  `admin` 컬랙션의 속성
+  ``` JSON
+  {
+    id: 'admin',
+    indexingPolicy: {
+      indexingMode: 'consistent',
+      automatic: true,
+      includedPaths: [{path: '/session/token/?'}],
+      excludedPaths: [{path: '/*'}, {path: '/"_etag"/?'}],
+    },
+  }
+  ```
 
-[comment]: <> (  ``` SQL)
+  `event` 컬랙션의 속성
+  ``` JSON
+  {
+    id: 'event',
+    indexingPolicy: {
+      indexingMode: 'consistent',
+      automatic: true,
+      includedPaths: [{path: '/date/?'}],
+      excludedPaths: [{path: '/*'}, {path: '/"_etag"/?'}],
+    },
+  }
+  ```
 
-[comment]: <> (  CREATE TABLE admin &#40;)
-
-[comment]: <> (    username VARCHAR&#40;12&#41; NOT NULL PRIMARY KEY,)
-
-[comment]: <> (    password CHAR&#40;88&#41; NOT NULL,)
-
-[comment]: <> (    name VARCHAR&#40;255&#41; NOT NULL,)
-
-[comment]: <> (    membersince TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP)
-
-[comment]: <> (  &#41; CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;)
-
-[comment]: <> (  ```)
-
-[comment]: <> (  `admin_session` 테이블을 만들기 위한 SQL 쿼리)
-
-[comment]: <> (  ``` SQL)
-
-[comment]: <> (  CREATE TABLE admin_session &#40;)
-
-[comment]: <> (    username VARCHAR&#40;12&#41; NOT NULL UNIQUE,)
-
-[comment]: <> (    FOREIGN KEY &#40;username&#41; REFERENCES admin&#40;username&#41; ON DELETE CASCADE ON UPDATE CASCADE,)
-
-[comment]: <> (    INDEX index_username&#40;username&#41;,)
-
-[comment]: <> (    token VARCHAR&#40;255&#41; NOT NULL PRIMARY KEY,)
-
-[comment]: <> (    expires TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,)
-
-[comment]: <> (  &#41; CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;)
-
-[comment]: <> (  ```)
-
-[comment]: <> (  `event` 테이블을 만들기 위한 SQL 쿼리)
-
-[comment]: <> (  ``` SQL)
-
-[comment]: <> (  CREATE TABLE event &#40;)
-
-[comment]: <> (    id INT&#40;11&#41; NOT NULL AUTO_INCREMENT PRIMARY KEY,)
-
-[comment]: <> (    date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,)
-
-[comment]: <> (    INDEX index_date&#40;date&#41;,)
-
-[comment]: <> (    name VARCHAR&#40;255&#41; NOT NULL,)
-
-[comment]: <> (    detail MEDIUMTEXT NULL DEFAULT NULL,)
-
-[comment]: <> (    category VARCHAR&#40;255&#41; NULL DEFAULT NULL,)
-
-[comment]: <> (    editor VARCHAR&#40;12&#41; NOT NULL,)
-
-[comment]: <> (    FOREIGN KEY &#40;editor&#41; REFERENCES admin&#40;username&#41; ON DELETE CASCADE ON UPDATE CASCADE)
-
-[comment]: <> (  &#41; CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;)
-
-[comment]: <> (  ```)
-
-[comment]: <> (  `participation` 테이블을 만들기 위한 SQL 쿼리)
-
-[comment]: <> (  ``` SQL)
-
-[comment]: <> (  CREATE TABLE participation &#40;)
-
-[comment]: <> (    id INT&#40;11&#41; NOT NULL AUTO_INCREMENT PRIMARY KEY,)
-
-[comment]: <> (    event_id INT&#40;11&#41; NOT NULL,)
-
-[comment]: <> (    FOREIGN KEY &#40;event_id&#41; REFERENCES event&#40;id&#41; ON DELETE CASCADE ON UPDATE CASCADE,)
-
-[comment]: <> (    INDEX index_event_id&#40;event_id&#41;,)
-
-[comment]: <> (    date TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,)
-
-[comment]: <> (    participant_name VARCHAR&#40;255&#41; NOT NULL,)
-
-[comment]: <> (    INDEX index_participant_name&#40;participant_name&#41;,)
-
-[comment]: <> (    phone_number VARCHAR&#40;20&#41; NULL DEFAULT NULL,)
-
-[comment]: <> (    email VARCHAR&#40;255&#41; NOT NULL,)
-
-[comment]: <> (    INDEX index_email&#40;email&#41;,)
-
-[comment]: <> (    comment TEXT NULL DEFAULT NULL)
-
-[comment]: <> (  &#41; CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;)
-
-[comment]: <> (  ```)
+  `participation` 컬랙션의 속성
+  ``` JSON
+  {
+    id: 'participation',
+    partitionKey: {paths: ['/eventId']},
+    uniqueKeyPolicy: {
+      uniqueKeys: [{paths: ['/eventId', '/participantName', '/email']}],
+    },
+    indexingPolicy: {
+      indexingMode: 'consistent',
+      automatic: true,
+      includedPaths: [
+        {path: '/eventId/?'},
+        {path: '/participantName/?'},
+        {path: '/email/?'},
+      ],
+      excludedPaths: [{path: '/*'}, {path: '/"_etag"/?'}],
+    },
+  }
+  ```
 </details>
 
 [Express](https://expressjs.com/)는 node.js를 위한 웹 프레임워크입니다.
