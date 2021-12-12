@@ -51,16 +51,15 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      # Wait for 2 min before setting up the container
-      - name: Sleep for 2 min
+      # Wait for 1 min before setting up the container
+      - name: Sleep for 1 min
         uses: jakejarvis/wait-action@master
         with:
-          time: '30s'
+          time: '60s'
 
       # Checks whether the container properly runs or not
       - name: Check CosmosDB Emulator
         run: |
-          apt update && apt install -y wget
           wget -O- https://${{ env.DB_HOST }}:${{ env.DB_PORT }}/_explorer/index.html --no-check-certificate
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
