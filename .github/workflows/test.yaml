@@ -42,10 +42,10 @@ jobs:
         options: >-
           -m 3g
           --cpus 2.0
-          --health-cmd "timeout 5 bash -c 'wget -O- https://127.0.0.1:8081/_explorer/index.html --no-check-certificate'"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
+          --health-cmd "timeout 30 bash -c 'wget -O- https://127.0.0.1:8081/_explorer/index.html --no-check-certificate'"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 10
 
     name: Node ${{ matrix.node_version }} - ${{ matrix.architecture }} on ${{ matrix.container }}
 
