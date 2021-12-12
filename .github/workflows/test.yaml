@@ -20,6 +20,9 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
+        container:
+          - ubuntu:latest
+          - ubuntu:rolling
         node_version:
           - 14
           - 16
@@ -27,6 +30,7 @@ jobs:
           - x64
 
     # Service containers to run with test
+    container: ${{ matrix.container }}
     services:
       # Label used to access the service container
       cosmosdb-emulator:
@@ -54,7 +58,7 @@ jobs:
       # Checks whether the container properly runs or not
       - name: Check CosmosDB Emulator
         run: |
-          wget https://${{ env.DB_HOST }}:${{ env.DB_PORT }}/_explorer/index.html
+          wget https://${{ env.DB_HOST }}:${{ env.DB_PORT }}/_explorer/index.html --no-check-certificate
           cat index.html
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
@@ -78,4 +82,4 @@ jobs:
 
       # Run Test
       - name: Run Test
-        run: npm test
+        run: DB_HOST=${{ env.DB_HOST }} DB_PORT=${{ env.DB_PORT }} npm test
