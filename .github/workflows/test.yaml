@@ -45,8 +45,18 @@ jobs:
 
     name: Node ${{ matrix.node_version }} - ${{ matrix.architecture }} on ${{ matrix.os }}
 
+    env:
+      DB_HOST: cosmosdb-emulator
+      DB_PORT: 8081
+
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
+      # Checks whether the container properly runs or not
+      - name: Check CosmosDB Emulator
+        run: |
+          wget https://${{ env.DB_HOST }}:${{ env.DB_PORT }}/_explorer/index.html
+          cat index.html
+
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       - name: Check out repository code
         uses: actions/checkout@v2

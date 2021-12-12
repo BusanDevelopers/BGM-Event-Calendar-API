@@ -17,19 +17,24 @@ export default class TestConfig extends ServerConfigTemplate {
    * Constructor for ServerConfig
    *
    * @param identifier test name / used to identify test cases
-   * @param endpoint {string | undefined} url of server endpoint
+   * @param host {string | undefined} url of server DB_HOST
+   * @param port {string | undefined} port of server DB_PORT
    * @param dbKey {string | undefined} key used to access Azure Cosmos DB
    */
   constructor(
     identifier: string,
-    endpoint?: string | undefined,
+    host?: string | undefined,
+    port?: number | undefined,
     dbKey?: string | undefined
   ) {
+    let endpoint = 'https://';
+    endpoint += host ? host : 'localhost';
+    endpoint += ':';
+    endpoint += port ? port : 8081;
+
     const config: ConfigObj = {
       db: {
-        endpoint: /* istanbul ignore next */ endpoint
-          ? endpoint
-          : 'https://localhost:8081',
+        endpoint: endpoint,
         key: /* istanbul ignore next */ dbKey
           ? dbKey
           : 'C2y6yDjf5/R+ob0N8A7Cgv30VRDJIWEHLM+4QDU5DE2nQ9nDuVTqobD4b8mGGyPMbIZnqyMsEcaGQy67XIw/Jw==',

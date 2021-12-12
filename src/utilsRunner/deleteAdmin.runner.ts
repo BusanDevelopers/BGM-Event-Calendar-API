@@ -24,15 +24,20 @@ if (process.argv.length !== 3) {
   process.exit(1);
 }
 
-if (!process.env.DB_ENDPOINT || !process.env.DB_KEY || !process.env.DB_ID) {
-  console.log('NEED DB_ENDPOINT, DB_KEY AND DB_ID ENV VARIABLE');
+// Configuration of the server
+if (
+  !process.env.DB_HOST ||
+  !process.env.DB_PORT ||
+  !process.env.DB_KEY ||
+  !process.env.DB_ID
+) {
+  console.log('NEED DB_HOST, DB_PORT, DB_KEY AND DB_ID ENV VARIABLE');
   // eslint-disable-next-line no-process-exit
   process.exit(1);
 }
-
-// Parse username and Call deleteAdmin()
 const config = new ServerConfig(
-  process.env.DB_ENDPOINT,
+  process.env.DB_HOST,
+  parseInt(process.env.DB_PORT),
   process.env.DB_KEY,
   process.env.DB_ID
 );

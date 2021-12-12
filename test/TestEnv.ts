@@ -41,10 +41,16 @@ export default class TestEnv {
       .update(identifier)
       .digest('hex');
 
+    let port = process.env.DB_PORT ? parseInt(process.env.DB_PORT) : 8081;
+    if (isNaN(port)) {
+      port = 8081;
+    }
+
     // Generate TestConfig obj
     this.testConfig = new TestConfig(
       this.dbIdentifier,
-      process.env.DB_ENDPOINT,
+      process.env.DB_HOST,
+      port,
       process.env.DB_KEY
     );
   }

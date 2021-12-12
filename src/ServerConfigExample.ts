@@ -19,21 +19,23 @@ export default class ServerConfig extends ServerConfigTemplate {
   /**
    * Constructor for ServerConfig
    *
-   * @param dbEndpoint {string} database endpoint url
+   * @param dbHost {string} database endpoint url
+   * @param dbPort {number} database endpoint port
    * @param dbKey {string} primary key to access the CosmosDB Server
    * @param dbId {string} database key to identify db
    */
   /* istanbul ignore next */
-  constructor(dbEndpoint: string, dbKey: string, dbId: string) {
+  constructor(dbHost: string, dbPort: number, dbKey: string, dbId: string) {
     const config: ConfigObj = {
       db: {
-        endpoint: dbEndpoint,
+        endpoint: `https://${dbHost}:${dbPort}`,
         key: dbKey,
         databaseId: dbId,
       },
       expressPort: 3000,
       jwtKeys: {secretKey: 'keySecret', refreshKey: 'keySecretRefresh'},
     };
+    console.log(config.db.endpoint);
     super(config);
   }
 
